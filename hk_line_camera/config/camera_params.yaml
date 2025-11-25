@@ -1,0 +1,36 @@
+hk_line_camera_node:
+  ros__parameters:
+    # Camera selection
+    camera_index: 0
+    frame_id: "camera_frame"
+    image_topic: "image_raw"
+    
+    # Trigger parameters
+    # TriggerSelector: 9 = LineStart, 6 = FrameBurstStart
+    trigger_selector: 9
+    # TriggerMode: 1 = On, 0 = Off
+    trigger_mode: 1
+    # TriggerSource: 6 = EncoderModuleOut, 0 = Line0, 1 = Line1, etc.
+    trigger_source: 6
+    # TriggerActivation: 0 = RisingEdge, 1 = FallingEdge
+    trigger_activation: 0
+    # Trigger delay in seconds
+    trigger_delay: 0.0
+    
+    # Encoder parameters
+    encoder_selector: 0
+    # EncoderSourceA: Line number (e.g., 0 = Line0, 3 = Line3)
+    encoder_source_a: 3
+    # EncoderSourceB: Line number
+    encoder_source_b: 0
+    # EncoderTriggerMode: 0 = AnyDirection
+    encoder_trigger_mode: 0
+    # EncoderCounterMode: 0 = IgnoreDirection
+    encoder_counter_mode: 0
+    encoder_counter: 0
+    encoder_counter_max: 10000
+    encoder_max_reverse_counter: 0
+    
+    # Exposure parameters
+    # Exposure time in microseconds
+    exposure_time_us: 300.0
