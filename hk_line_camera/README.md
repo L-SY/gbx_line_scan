@@ -10,6 +10,7 @@ ROS2 package for Hikvision line scan camera using MVS SDK.
 - Exposure time configuration
 - Image publishing to ROS2 topics
 - Real-time image acquisition via callback
+- **Image stitching node**: Accumulate multiple line scan images into a larger stitched image
 
 ## Requirements
 
@@ -84,9 +85,55 @@ All parameters can be configured via YAML file or command line:
 ros2 run hk_line_camera hk_line_camera_node --ros-args -p exposure_time_us:=500.0
 ```
 
+## Image Stitching Node
+
+The image stitching node can accumulate multiple line scan images vertically to create a larger stitched image. This is useful when you need to combine multiple frames from a line scan camera.
+
+### Launch Stitching Node Only
+
+```bash
+ros2 launch hk_line_camera image_stitching.launch.py
+```
+
+### Launch Camera with Stitching
+
+```bash
+ros2 launch hk_line_camera camera_with_stitching.launch.py
+```
+
+### Stitching Parameters
+
+Configure stitching behavior via `config/stitching_params.yaml`:
+
+- `input_topic`: Topic to subscribe to (default: "image_raw")
+- `output_topic`: Topic to publish stitched images (default: "image_stitched")
+- `frame_id`: Frame ID for published images
+- `max_height`: Maximum height in pixels (0 = unlimited)
+- `max_stitch_count`: Maximum number of images to stitch (0 = unlimited)
+- `reset_on_max_height`: Reset and start new when max_height is reached
+- `reset_on_max_count`: Reset and start new when max_stitch_count is reached
+- `publish_periodically`: If true, publish at fixed rate instead of on each image
+- `publish_rate`: Publishing rate in Hz (if publish_periodically is true)
+
+### Example: Limit Stitched Image Height
+
+```yaml
+image_stitching_node:
+  ros__parameters:
+    max_height: 4800              # Stitch up to 4800 pixels high
+    max_stitch_count: 10          # Stitch up to 10 frames
+    reset_on_max_height: true     # Reset when limit reached
+    reset_on_max_count: true
+```
+
 ## Topics
 
+### Camera Node
 - `image_raw` (sensor_msgs/Image): Published camera images
+
+### Stitching Node
+- `image_raw` (sensor_msgs/Image): Input images (subscribed from camera)
+- `image_stitched` (sensor_msgs/Image): Output stitched images
 
 ## Troubleshooting
 

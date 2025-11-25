@@ -1,0 +1,19 @@
+image_stitching_node:
+  ros__parameters:
+    # Input/Output topics
+    input_topic: "image_raw"           # Topic to subscribe to (from camera node)
+    output_topic: "image_stitched"     # Topic to publish stitched images to
+    frame_id: "camera_frame"           # Frame ID for published images
+    
+    # Stitching limits
+    max_height: 0                      # Maximum height in pixels (0 = unlimited)
+    max_stitch_count: 0                # Maximum number of images to stitch (0 = unlimited)
+    
+    # Reset behavior
+    reset_on_max_height: true          # Reset and start new when max_height is reached
+    reset_on_max_count: true           # Reset and start new when max_stitch_count is reached
+    
+    # Publishing options
+    publish_periodically: false        # If true, publish at fixed rate instead of on each image
+    publish_rate: 1.0                  # Publishing rate in Hz (if publish_periodically is true)
+

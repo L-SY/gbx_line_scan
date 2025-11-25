@@ -26,7 +26,7 @@ include_directories(
   ${OpenCV_INCLUDE_DIRS}
 )
 
-# Add executable
+# Add camera node executable
 add_executable(hk_line_camera_node src/hk_line_camera_node.cpp)
 
 # Set RPATH so the library can be found at runtime
@@ -68,9 +68,27 @@ ament_target_dependencies(hk_line_camera_node
   image_transport
 )
 
+# Add image stitching node executable (doesn't need SDK libraries)
+add_executable(image_stitching_node src/image_stitching_node.cpp)
+
+# Link libraries for stitching node (only OpenCV and standard libraries)
+target_link_libraries(image_stitching_node
+  ${OpenCV_LIBS}
+)
+
+# Add dependencies
+ament_target_dependencies(image_stitching_node
+  rclcpp
+  sensor_msgs
+  std_msgs
+  cv_bridge
+  image_transport
+)
+
 # Install
 install(TARGETS
   hk_line_camera_node
+  image_stitching_node
   DESTINATION lib/${PROJECT_NAME}
 )
 
