@@ -1,0 +1,9 @@
+<library path="actuator_interface_hw">
+  <class name="actuator_interface/Ros2ControlHw" type="actuator_interface::Ros2ControlHw" base_class_type="hardware_interface::SystemInterface">
+    <description>
+      Generic ROS2 Control Hardware Interface for CAN-based actuators.
+      Supports RM series motors (RM2006, RM3508, etc.) with effort control interface.
+      Dynamically configurable from YAML files for extensible motor configurations.
+    </description>
+  </class>
+</library> 

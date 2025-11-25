@@ -1,0 +1,43 @@
+<?xml version="1.0"?>
+<package format="3">
+  <name>actuator_interface</name>
+  <version>1.0.0</version>
+  <description>Generic CAN-based actuator interface for ROS2 control framework</description>
+
+  <maintainer email="lsy@todo.todo">lsy</maintainer>
+  <license>TODO</license>
+
+  <buildtool_depend>ament_cmake</buildtool_depend>
+
+  <!-- Core ROS2 dependencies -->
+  <depend>rclcpp</depend>
+  <depend>rclcpp_lifecycle</depend>
+  <depend>std_msgs</depend>
+  <depend>sensor_msgs</depend>
+  <depend>geometry_msgs</depend>
+
+  <!-- ROS2 Control dependencies -->
+  <depend>hardware_interface</depend>
+  <depend>controller_manager</depend>
+  <depend>ros2_control</depend>
+  <depend>ros2_controllers</depend>
+  <depend>pluginlib</depend>
+
+  <!-- URDF and robot description -->
+  <depend>urdf</depend>
+  <depend>xacro</depend>
+
+  <!-- YAML configuration -->
+  <!-- yaml-cpp is handled via standard system library -->
+
+  <!-- Build dependencies -->
+  <build_depend>ament_cmake</build_depend>
+
+  <!-- Test dependencies -->
+  <test_depend>ament_lint_auto</test_depend>
+  <test_depend>ament_lint_common</test_depend>
+
+  <export>
+    <build_type>ament_cmake</build_type>
+  </export>
+</package>

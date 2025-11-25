@@ -1,0 +1,60 @@
+# 虚拟CAN测试配置文件
+# 用于测试actuator_interface包
+
+actuator_interface_hw:
+  buses:
+    - name: "vcan0"
+      priority: 50
+
+  devices:
+    - name: "motor1"
+      bus: "vcan0"
+      id: 1
+      model: "RM2006"
+      config:
+        rx_id: 0x201
+        tx_id: 0x200
+        motor_index: 0
+        max_effort: 8000
+        cutoff_freq: 100.0
+        control_mode: "EFFORT"
+        master_id: 0x200
+
+    - name: "motor2"
+      bus: "vcan0"
+      id: 2
+      model: "RM2006"
+      config:
+        rx_id: 0x202
+        tx_id: 0x200
+        motor_index: 1
+        max_effort: 8000
+        cutoff_freq: 100.0
+        control_mode: "EFFORT"
+        master_id: 0x200
+
+    - name: "motor3"
+      bus: "vcan0"
+      id: 3
+      model: "RM2006"
+      config:
+        rx_id: 0x203
+        tx_id: 0x200
+        motor_index: 2
+        max_effort: 8000
+        cutoff_freq: 100.0
+        control_mode: "EFFORT"
+        master_id: 0x200
+
+    - name: "motor4"
+      bus: "vcan0"
+      id: 4
+      model: "RM2006"
+      config:
+        rx_id: 0x204
+        tx_id: 0x200
+        motor_index: 3
+        max_effort: 8000
+        cutoff_freq: 100.0
+        control_mode: "EFFORT"
+        master_id: 0x200 

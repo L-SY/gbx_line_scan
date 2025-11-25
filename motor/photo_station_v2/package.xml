@@ -1,0 +1,34 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+  <name>photo_station_v2</name>
+  <version>2.0.0</version>
+  <description>Photo Station V2 application layer - specific configuration and launch files for the photo station system</description>
+  
+  <maintainer email="yang@example.com">Yang</maintainer>
+  <license>MIT</license>
+  
+  <buildtool_depend>ament_cmake</buildtool_depend>
+  
+  <!-- Core ROS2 dependencies -->
+  <exec_depend>actuator_interface</exec_depend>
+  <exec_depend>controller_manager</exec_depend>
+  <exec_depend>joint_state_broadcaster</exec_depend>
+  <exec_depend>pid_controller</exec_depend>
+  <exec_depend>effort_controllers</exec_depend>
+  <exec_depend>position_controllers</exec_depend>
+  <exec_depend>robot_state_publisher</exec_depend>
+  <exec_depend>rviz2</exec_depend>
+  <exec_depend>xacro</exec_depend>
+  
+  <!-- Launch and config dependencies -->
+  <exec_depend>launch</exec_depend>
+  <exec_depend>launch_ros</exec_depend>
+  
+  <test_depend>ament_lint_auto</test_depend>
+  <test_depend>ament_lint_common</test_depend>
+  
+  <export>
+    <build_type>ament_cmake</build_type>
+  </export>
+</package> 

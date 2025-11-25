@@ -1,0 +1,36 @@
+actuator_interface_hw:
+  # CAN bus configuration
+  buses:
+    - name: "can0"
+      bitrate: 1000000
+      priority: 95
+      
+  # Actuator devices configuration
+  devices:
+    - name: "motor1"
+      bus: "can0"
+      id: 1
+      model: "RM2006"
+      config:
+        master_id: 0x201       # CAN ID for receiving feedback from this motor
+        max_out: 10000         # Maximum output value (current command)
+        cutoff_freq: 100.0     # Low-pass filter frequency for velocity
+        gear_ratio: 1.0        # Gear reduction ratio
+        direction: 1           # Motor direction (1 or -1)
+        control_mode: "EFFORT"
+        
+    - name: "motor2"
+      bus: "can0"
+      id: 2
+      model: "RM2006"
+      config:
+        master_id: 0x202       # CAN ID for receiving feedback from this motor
+        max_out: 10000         # Maximum output value (current command)
+        cutoff_freq: 100.0     # Low-pass filter frequency for velocity
+        gear_ratio: 1.0        # Gear reduction ratio
+        direction: 1           # Motor direction (1 or -1)
+        control_mode: "EFFORT"
+
+# Note: Joint to actuator mapping uses naming convention:
+# joint1 -> motor1, joint2 -> motor2, etc.
+# Joints are defined in URDF, devices are defined above 

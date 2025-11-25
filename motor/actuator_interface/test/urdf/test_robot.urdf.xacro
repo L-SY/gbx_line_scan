@@ -1,0 +1,224 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="test_robot">
+
+  <!-- 已移除: <xacro:include filename="$(find ros2_control)/urdf/ros2_control.urdf.xacro" /> -->
+
+  <!-- 定义一些常量 -->
+  <xacro:property name="base_width" value="0.3" />
+  <xacro:property name="base_length" value="0.3" />
+  <xacro:property name="base_height" value="0.1" />
+
+  <!-- 材质定义 -->
+  <material name="blue">
+    <color rgba="0 0 1 1"/>
+  </material>
+
+  <material name="red">
+    <color rgba="1 0 0 1"/>
+  </material>
+
+  <material name="green">
+    <color rgba="0 1 0 1"/>
+  </material>
+
+  <material name="grey">
+    <color rgba="0.5 0.5 0.5 1"/>
+  </material>
+
+  <!-- 基座链接 -->
+  <link name="base_link">
+    <visual>
+      <geometry>
+        <box size="${base_length} ${base_width} ${base_height}"/>
+      </geometry>
+      <material name="blue"/>
+    </visual>
+    <collision>
+      <geometry>
+        <box size="${base_length} ${base_width} ${base_height}"/>
+      </geometry>
+    </collision>
+    <inertial>
+      <mass value="5.0"/>
+      <inertia ixx="1.0" ixy="0.0" ixz="0.0" iyy="1.0" iyz="0.0" izz="1.0"/>
+    </inertial>
+  </link>
+
+  <!-- 电机1链接 -->
+  <link name="motor1_link">
+    <visual>
+      <geometry>
+        <cylinder radius="0.03" length="0.1"/>
+      </geometry>
+      <material name="red"/>
+    </visual>
+    <collision>
+      <geometry>
+        <cylinder radius="0.03" length="0.1"/>
+      </geometry>
+    </collision>
+    <inertial>
+      <mass value="0.5"/>
+      <inertia ixx="0.01" ixy="0.0" ixz="0.0" iyy="0.01" iyz="0.0" izz="0.01"/>
+    </inertial>
+  </link>
+
+  <!-- 电机1关节 -->
+  <joint name="motor1" type="continuous">
+    <parent link="base_link"/>
+    <child link="motor1_link"/>
+    <origin xyz="0.1 0.1 ${base_height/2 + 0.05}" rpy="0 0 0"/>
+    <axis xyz="0 0 1"/>
+    <dynamics damping="0.1"/>
+  </joint>
+
+  <!-- 电机2链接 -->
+  <link name="motor2_link">
+    <visual>
+      <geometry>
+        <cylinder radius="0.03" length="0.1"/>
+      </geometry>
+      <material name="green"/>
+    </visual>
+    <collision>
+      <geometry>
+        <cylinder radius="0.03" length="0.1"/>
+      </geometry>
+    </collision>
+    <inertial>
+      <mass value="0.5"/>
+      <inertia ixx="0.01" ixy="0.0" ixz="0.0" iyy="0.01" iyz="0.0" izz="0.01"/>
+    </inertial>
+  </link>
+
+  <!-- 电机2关节 -->
+  <joint name="motor2" type="continuous">
+    <parent link="base_link"/>
+    <child link="motor2_link"/>
+    <origin xyz="-0.1 0.1 ${base_height/2 + 0.05}" rpy="0 0 0"/>
+    <axis xyz="0 0 1"/>
+    <dynamics damping="0.1"/>
+  </joint>
+
+  <!-- 电机3链接 -->
+  <link name="motor3_link">
+    <visual>
+      <geometry>
+        <cylinder radius="0.03" length="0.1"/>
+      </geometry>
+      <material name="red"/>
+    </visual>
+    <collision>
+      <geometry>
+        <cylinder radius="0.03" length="0.1"/>
+      </geometry>
+    </collision>
+    <inertial>
+      <mass value="0.5"/>
+      <inertia ixx="0.01" ixy="0.0" ixz="0.0" iyy="0.01" iyz="0.0" izz="0.01"/>
+    </inertial>
+  </link>
+
+  <!-- 电机3关节 -->
+  <joint name="motor3" type="continuous">
+    <parent link="base_link"/>
+    <child link="motor3_link"/>
+    <origin xyz="-0.1 -0.1 ${base_height/2 + 0.05}" rpy="0 0 0"/>
+    <axis xyz="0 0 1"/>
+    <dynamics damping="0.1"/>
+  </joint>
+
+  <!-- 电机4链接 -->
+  <link name="motor4_link">
+    <visual>
+      <geometry>
+        <cylinder radius="0.03" length="0.1"/>
+      </geometry>
+      <material name="green"/>
+    </visual>
+    <collision>
+      <geometry>
+        <cylinder radius="0.03" length="0.1"/>
+      </geometry>
+    </collision>
+    <inertial>
+      <mass value="0.5"/>
+      <inertia ixx="0.01" ixy="0.0" ixz="0.0" iyy="0.01" iyz="0.0" izz="0.01"/>
+    </inertial>
+  </link>
+
+  <!-- 电机4关节 -->
+  <joint name="motor4" type="continuous">
+    <parent link="base_link"/>
+    <child link="motor4_link"/>
+    <origin xyz="0.1 -0.1 ${base_height/2 + 0.05}" rpy="0 0 0"/>
+    <axis xyz="0 0 1"/>
+    <dynamics damping="0.1"/>
+  </joint>
+
+  <!-- ROS2 Control 硬件接口 -->
+  <ros2_control name="actuator_interface_hw" type="system">
+    <hardware>
+      <plugin>actuator_interface/Ros2ControlHw</plugin>
+      <param name="config_file">$(find actuator_interface)/test/config/test_virtual_can.yaml</param>
+    </hardware>
+
+    <joint name="motor1">
+      <command_interface name="effort">
+        <param name="min">-8000</param>
+        <param name="max">8000</param>
+      </command_interface>
+      <command_interface name="position">
+        <param name="min">-6.28</param>
+        <param name="max">6.28</param>
+      </command_interface>
+      <state_interface name="position"/>
+      <state_interface name="velocity"/>
+      <state_interface name="effort"/>
+    </joint>
+
+    <joint name="motor2">
+      <command_interface name="effort">
+        <param name="min">-8000</param>
+        <param name="max">8000</param>
+      </command_interface>
+      <command_interface name="position">
+        <param name="min">-6.28</param>
+        <param name="max">6.28</param>
+      </command_interface>
+      <state_interface name="position"/>
+      <state_interface name="velocity"/>
+      <state_interface name="effort"/>
+    </joint>
+
+    <joint name="motor3">
+      <command_interface name="effort">
+        <param name="min">-8000</param>
+        <param name="max">8000</param>
+      </command_interface>
+      <command_interface name="position">
+        <param name="min">-6.28</param>
+        <param name="max">6.28</param>
+      </command_interface>
+      <state_interface name="position"/>
+      <state_interface name="velocity"/>
+      <state_interface name="effort"/>
+    </joint>
+
+    <joint name="motor4">
+      <command_interface name="effort">
+        <param name="min">-8000</param>
+        <param name="max">8000</param>
+      </command_interface>
+      <command_interface name="position">
+        <param name="min">-6.28</param>
+        <param name="max">6.28</param>
+      </command_interface>
+      <state_interface name="position"/>
+      <state_interface name="velocity"/>
+      <state_interface name="effort"/>
+    </joint>
+
+  </ros2_control>
+
+</robot> 
