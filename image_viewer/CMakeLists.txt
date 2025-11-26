@@ -10,6 +10,7 @@ find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(sensor_msgs REQUIRED)
 find_package(cv_bridge REQUIRED)
+find_package(control_msgs REQUIRED)
 find_package(OpenCV REQUIRED)
 
 # Qt dependencies
@@ -47,6 +48,7 @@ ament_target_dependencies(image_viewer
   rclcpp
   sensor_msgs
   cv_bridge
+  control_msgs
 )
 
 # Install

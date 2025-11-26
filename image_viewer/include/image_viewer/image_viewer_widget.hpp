@@ -15,6 +15,7 @@
 #include <QSlider>
 #include <rclcpp/rclcpp.hpp>
 #include <sensor_msgs/msg/image.hpp>
+#include <control_msgs/msg/multi_dof_command.hpp>
 #include <cv_bridge/cv_bridge.h>
 #include <opencv2/opencv.hpp>
 #include <QTimer>
@@ -42,6 +43,9 @@ private slots:
   void onRefreshTopics();
   void onImageReceived();
   void onSaveImage();
+  void onMotorForward();
+  void onMotorBackward();
+  void onMotorStop();
 
 signals:
   void imageReceived();
@@ -52,10 +56,12 @@ private:
   void setZoomFactor(double zoom);
   void fitToWindow();
   QStringList getAvailableTopics();
+  void publishMotorCommand(double joint1_value, double joint2_value);
 
   // ROS2
   std::shared_ptr<rclcpp::Node> node_;
   rclcpp::Subscription<sensor_msgs::msg::Image>::SharedPtr image_sub_;
+  rclcpp::Publisher<control_msgs::msg::MultiDOFCommand>::SharedPtr motor_pub_;
   
   // UI Components
   QVBoxLayout* main_layout_;
@@ -69,6 +75,13 @@ private:
   QPushButton* zoom_100_btn_;
   QPushButton* refresh_topics_btn_;
   QPushButton* save_image_btn_;
+  
+  // Motor control UI
+  QPushButton* motor_forward_btn_;
+  QPushButton* motor_backward_btn_;
+  QPushButton* motor_stop_btn_;
+  QDoubleSpinBox* motor_speed_spinbox_;
+  QSlider* motor_speed_slider_;
   
   QDoubleSpinBox* zoom_spinbox_;
   QComboBox* topic_combo_;
@@ -89,6 +102,12 @@ private:
   QTimer* status_timer_;
   int frame_count_;
   QTimer* ros_timer_;
+  
+  // Motor control
+  double motor_speed_;
+  QTimer* motor_pub_timer_;
+  enum class MotorMode { STOP, FORWARD, BACKWARD };
+  MotorMode current_motor_mode_;
 };
 
 #endif // IMAGE_VIEWER_IMAGE_VIEWER_WIDGET_HPP

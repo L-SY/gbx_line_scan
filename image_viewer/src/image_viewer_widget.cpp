@@ -19,6 +19,7 @@
 #include <rclcpp/rclcpp.hpp>
 #include <sensor_msgs/msg/image.hpp>
 #include <sensor_msgs/image_encodings.hpp>
+#include <control_msgs/msg/multi_dof_command.hpp>
 #include <QApplication>
 #include <QTimer>
 #include <functional>
@@ -27,13 +28,19 @@ ImageViewerWidget::ImageViewerWidget(QWidget *parent)
   : QWidget(parent),
     zoom_factor_(1.0),
     fit_to_window_(true),
-    frame_count_(0)
+    frame_count_(0),
+    motor_speed_(0.35),
+    current_motor_mode_(MotorMode::STOP)
 {
   // Initialize ROS2 node (if not already initialized)
   // Note: rclcpp::init should be called in main(), not here
   // This assumes rclcpp is already initialized
   
   node_ = std::make_shared<rclcpp::Node>("image_viewer_widget");
+  
+  // Create motor control publisher
+  motor_pub_ = node_->create_publisher<control_msgs::msg::MultiDOFCommand>(
+    "/velocity_controller/reference", 10);
   
   setupUI();
   
@@ -75,6 +82,10 @@ ImageViewerWidget::~ImageViewerWidget()
 {
   ros_timer_->stop();
   status_timer_->stop();
+  motor_pub_timer_->stop();
+  
+  // Stop motor before shutdown
+  onMotorStop();
   
   // Reset subscriber (shared_ptr will handle cleanup)
   image_sub_.reset();
@@ -174,6 +185,128 @@ void ImageViewerWidget::setupUI()
   toolbar_layout_->addStretch();
   
   main_layout_->addWidget(toolbar_group);
+  
+  // Motor control group
+  QGroupBox* motor_group = new QGroupBox("Motor Control");
+  QHBoxLayout* motor_layout = new QHBoxLayout(motor_group);
+  motor_layout->setSpacing(5);
+  
+  QLabel* speed_label = new QLabel("Speed:");
+  motor_layout->addWidget(speed_label);
+  
+  // Speed slider (0-100 corresponds to 0.0-5.0)
+  motor_speed_slider_ = new QSlider(Qt::Horizontal);
+  motor_speed_slider_->setRange(0, 100); // 0-100 corresponds to 0.0-5.0
+  motor_speed_slider_->setValue(7); // 7 corresponds to 0.35
+  motor_speed_slider_->setMaximumWidth(150);
+  motor_speed_slider_->setToolTip("Motor speed (rad/s)");
+  connect(motor_speed_slider_, &QSlider::valueChanged, this, [this](int value) {
+    double speed = value * 0.05; // Convert 0-100 to 0.0-5.0
+    motor_speed_spinbox_->blockSignals(true);
+    motor_speed_spinbox_->setValue(speed);
+    motor_speed_spinbox_->blockSignals(false);
+    motor_speed_ = speed;
+  });
+  motor_layout->addWidget(motor_speed_slider_);
+  
+  motor_speed_spinbox_ = new QDoubleSpinBox();
+  motor_speed_spinbox_->setRange(0.0, 5.0);
+  motor_speed_spinbox_->setValue(0.35);
+  motor_speed_spinbox_->setSingleStep(0.05);
+  motor_speed_spinbox_->setDecimals(2);
+  motor_speed_spinbox_->setMaximumWidth(80);
+  motor_speed_spinbox_->setToolTip("Motor speed (rad/s)");
+  connect(motor_speed_spinbox_, QOverload<double>::of(&QDoubleSpinBox::valueChanged),
+          this, [this](double value) {
+    motor_speed_ = value;
+    // Sync slider with spinbox
+    int slider_value = static_cast<int>(value / 0.05);
+    motor_speed_slider_->blockSignals(true);
+    motor_speed_slider_->setValue(slider_value);
+    motor_speed_slider_->blockSignals(false);
+  });
+  motor_layout->addWidget(motor_speed_spinbox_);
+  
+  motor_layout->addSpacing(10);
+  
+  motor_forward_btn_ = new QPushButton("Forward");
+  motor_forward_btn_->setMaximumWidth(100);
+  motor_forward_btn_->setToolTip("Move forward (click to toggle)");
+  motor_forward_btn_->setCheckable(true);
+  motor_forward_btn_->setStyleSheet(
+    "QPushButton { "
+    "  background-color: #E0E0E0; "
+    "  border: 1px solid #808080; "
+    "  border-radius: 3px; "
+    "  padding: 5px; "
+    "} "
+    "QPushButton:hover { "
+    "  background-color: #D0D0D0; "
+    "} "
+    "QPushButton:checked { "
+    "  background-color: #808080; "
+    "  color: white; "
+    "} "
+    "QPushButton:pressed { "
+    "  background-color: #606060; "
+    "}"
+  );
+  connect(motor_forward_btn_, &QPushButton::clicked, this, &ImageViewerWidget::onMotorForward);
+  motor_layout->addWidget(motor_forward_btn_);
+  
+  motor_backward_btn_ = new QPushButton("Backward");
+  motor_backward_btn_->setMaximumWidth(100);
+  motor_backward_btn_->setToolTip("Move backward (click to toggle)");
+  motor_backward_btn_->setCheckable(true);
+  motor_backward_btn_->setStyleSheet(
+    "QPushButton { "
+    "  background-color: #E0E0E0; "
+    "  border: 1px solid #808080; "
+    "  border-radius: 3px; "
+    "  padding: 5px; "
+    "} "
+    "QPushButton:hover { "
+    "  background-color: #D0D0D0; "
+    "} "
+    "QPushButton:checked { "
+    "  background-color: #808080; "
+    "  color: white; "
+    "} "
+    "QPushButton:pressed { "
+    "  background-color: #606060; "
+    "}"
+  );
+  connect(motor_backward_btn_, &QPushButton::clicked, this, &ImageViewerWidget::onMotorBackward);
+  motor_layout->addWidget(motor_backward_btn_);
+  
+  motor_stop_btn_ = new QPushButton("Stop");
+  motor_stop_btn_->setMaximumWidth(80);
+  motor_stop_btn_->setToolTip("Stop motor");
+  motor_stop_btn_->setStyleSheet(
+    "QPushButton { "
+    "  background-color: #404040; "
+    "  color: white; "
+    "  border: 1px solid #202020; "
+    "  border-radius: 3px; "
+    "  padding: 5px; "
+    "} "
+    "QPushButton:hover { "
+    "  background-color: #505050; "
+    "} "
+    "QPushButton:pressed { "
+    "  background-color: #303030; "
+    "}"
+  );
+  connect(motor_stop_btn_, &QPushButton::clicked, this, &ImageViewerWidget::onMotorStop);
+  motor_layout->addWidget(motor_stop_btn_);
+  
+  motor_layout->addStretch();
+  
+  main_layout_->addWidget(motor_group);
+  
+  // Timer for continuous motor command publishing
+  motor_pub_timer_ = new QTimer(this);
+  motor_pub_timer_->setInterval(100); // 10 Hz (same as -r 10 in the alias)
   
   // Image display area
   scroll_area_ = new QScrollArea();
@@ -435,5 +568,87 @@ void ImageViewerWidget::onSaveImage()
     QMessageBox::critical(this, "Error", 
                          QString("Exception while saving:\n%1").arg(e.what()));
   }
+}
+
+void ImageViewerWidget::publishMotorCommand(double joint1_value, double joint2_value)
+{
+  if (!motor_pub_) {
+    return;
+  }
+  
+  control_msgs::msg::MultiDOFCommand msg;
+  msg.dof_names = {"joint1", "joint2"};
+  msg.values = {joint1_value, joint2_value};
+  msg.values_dot = {};
+  
+  motor_pub_->publish(msg);
+}
+
+void ImageViewerWidget::onMotorForward()
+{
+  // Toggle forward mode
+  if (current_motor_mode_ == MotorMode::FORWARD) {
+    // If already in forward mode, stop
+    onMotorStop();
+    motor_forward_btn_->setChecked(false);
+  } else {
+    // Switch to forward mode
+    motor_backward_btn_->setChecked(false);
+    current_motor_mode_ = MotorMode::FORWARD;
+    motor_forward_btn_->setChecked(true);
+    
+    // Forward: joint1 = -speed, joint2 = speed
+    double speed = motor_speed_spinbox_->value();
+    publishMotorCommand(-speed, speed);
+    
+    // Start timer for continuous publishing
+    motor_pub_timer_->disconnect(); // Disconnect previous connections
+    connect(motor_pub_timer_, &QTimer::timeout, this, [this]() {
+      if (current_motor_mode_ == MotorMode::FORWARD) {
+        double speed = motor_speed_spinbox_->value();
+        publishMotorCommand(-speed, speed);
+      }
+    });
+    motor_pub_timer_->start();
+  }
+}
+
+void ImageViewerWidget::onMotorBackward()
+{
+  // Toggle backward mode
+  if (current_motor_mode_ == MotorMode::BACKWARD) {
+    // If already in backward mode, stop
+    onMotorStop();
+    motor_backward_btn_->setChecked(false);
+  } else {
+    // Switch to backward mode
+    motor_forward_btn_->setChecked(false);
+    current_motor_mode_ = MotorMode::BACKWARD;
+    motor_backward_btn_->setChecked(true);
+    
+    // Backward: joint1 = speed, joint2 = -speed
+    double speed = motor_speed_spinbox_->value();
+    publishMotorCommand(speed, -speed);
+    
+    // Start timer for continuous publishing
+    motor_pub_timer_->disconnect(); // Disconnect previous connections
+    connect(motor_pub_timer_, &QTimer::timeout, this, [this]() {
+      if (current_motor_mode_ == MotorMode::BACKWARD) {
+        double speed = motor_speed_spinbox_->value();
+        publishMotorCommand(speed, -speed);
+      }
+    });
+    motor_pub_timer_->start();
+  }
+}
+
+void ImageViewerWidget::onMotorStop()
+{
+  // Stop: both joints = 0.0
+  current_motor_mode_ = MotorMode::STOP;
+  motor_pub_timer_->stop();
+  motor_forward_btn_->setChecked(false);
+  motor_backward_btn_->setChecked(false);
+  publishMotorCommand(0.0, 0.0);
 }
 
