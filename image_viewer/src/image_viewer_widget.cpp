@@ -14,6 +14,8 @@
 #include <QPalette>
 #include <QPixmap>
 #include <QImage>
+#include <QFileDialog>
+#include <QDateTime>
 #include <rclcpp/rclcpp.hpp>
 #include <sensor_msgs/msg/image.hpp>
 #include <sensor_msgs/image_encodings.hpp>
@@ -159,6 +161,15 @@ void ImageViewerWidget::setupUI()
   zoom_100_btn_->setToolTip("Zoom to 100%");
   connect(zoom_100_btn_, &QPushButton::clicked, this, &ImageViewerWidget::onZoom100);
   toolbar_layout_->addWidget(zoom_100_btn_);
+  
+  toolbar_layout_->addSpacing(20);
+  
+  // Save button
+  save_image_btn_ = new QPushButton("Save");
+  save_image_btn_->setMaximumWidth(80);
+  save_image_btn_->setToolTip("Save current image to file");
+  connect(save_image_btn_, &QPushButton::clicked, this, &ImageViewerWidget::onSaveImage);
+  toolbar_layout_->addWidget(save_image_btn_);
   
   toolbar_layout_->addStretch();
   
@@ -370,6 +381,59 @@ void ImageViewerWidget::onRefreshTopics()
   
   if (!current.isEmpty() && topics.contains(current)) {
     topic_combo_->setCurrentText(current);
+  }
+}
+
+void ImageViewerWidget::onSaveImage()
+{
+  // Copy image data while holding lock, then release lock before opening dialog
+  cv::Mat image_to_save;
+  {
+    std::lock_guard<std::mutex> lock(image_mutex_);
+    
+    if (current_image_.empty()) {
+      QMessageBox::warning(this, "No Image", "No image available to save.");
+      return;
+    }
+    
+    // Clone the image so we can release the lock
+    image_to_save = current_image_.clone();
+  } // Lock is released here
+  
+  // Generate default filename with timestamp
+  QDateTime now = QDateTime::currentDateTime();
+  QString default_filename = QString("image_%1.png")
+                             .arg(now.toString("yyyyMMdd_hhmmss"));
+  
+  // Open file dialog (now without holding the lock)
+  QString filename = QFileDialog::getSaveFileName(
+    this,
+    "Save Image",
+    default_filename,
+    "PNG Images (*.png);;JPEG Images (*.jpg *.jpeg);;All Files (*.*)"
+  );
+  
+  if (filename.isEmpty()) {
+    return; // User cancelled
+  }
+  
+  // Save the image
+  try {
+    bool success = cv::imwrite(filename.toStdString(), image_to_save);
+    if (success) {
+      status_label_->setText(QString("Image saved to: %1").arg(filename));
+      QMessageBox::information(this, "Success", 
+                               QString("Image saved successfully to:\n%1").arg(filename));
+    } else {
+      QMessageBox::critical(this, "Error", 
+                          QString("Failed to save image to:\n%1\n\nPlease check file permissions and path.").arg(filename));
+    }
+  } catch (const cv::Exception& e) {
+    QMessageBox::critical(this, "Error", 
+                         QString("OpenCV exception while saving:\n%1").arg(e.what()));
+  } catch (const std::exception& e) {
+    QMessageBox::critical(this, "Error", 
+                         QString("Exception while saving:\n%1").arg(e.what()));
   }
 }
 

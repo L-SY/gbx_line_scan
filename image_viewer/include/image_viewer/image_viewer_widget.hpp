@@ -41,6 +41,7 @@ private slots:
   void onTopicChanged();
   void onRefreshTopics();
   void onImageReceived();
+  void onSaveImage();
 
 signals:
   void imageReceived();
@@ -67,6 +68,7 @@ private:
   QPushButton* zoom_fit_btn_;
   QPushButton* zoom_100_btn_;
   QPushButton* refresh_topics_btn_;
+  QPushButton* save_image_btn_;
   
   QDoubleSpinBox* zoom_spinbox_;
   QComboBox* topic_combo_;
