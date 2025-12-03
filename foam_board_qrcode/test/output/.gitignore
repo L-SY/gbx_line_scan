@@ -1,0 +1,8 @@
+# 忽略所有生成的二维码图片
+*.png
+*.jpg
+*.jpeg
+
+# 但保留这个.gitignore文件本身
+!.gitignore
+
