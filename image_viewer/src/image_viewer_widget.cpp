@@ -703,27 +703,31 @@ void ImageViewerWidget::onResetImage()
   // Create request
   auto request = std::make_shared<std_srvs::srv::Trigger::Request>();
   
-  // Call service asynchronously
-  auto result_future = reset_client_->async_send_request(request);
-  
-  // Wait for the result (with timeout)
-  auto status = result_future.wait_for(std::chrono::seconds(2));
-  
-  if (status == std::future_status::ready) {
-    auto response = result_future.get();
-    if (response->success) {
-      status_label_->setText(QString("Reset successful: %1").arg(QString::fromStdString(response->message)));
-      QMessageBox::information(this, "Reset Successful", 
-                              QString::fromStdString(response->message));
-    } else {
-      status_label_->setText(QString("Reset failed: %1").arg(QString::fromStdString(response->message)));
-      QMessageBox::warning(this, "Reset Failed", 
-                          QString::fromStdString(response->message));
+  // Call service asynchronously with callback
+  // Use a lambda to handle the response without blocking the Qt event loop
+  auto response_received_callback = [this](rclcpp::Client<std_srvs::srv::Trigger>::SharedFuture future) {
+    try {
+      auto response = future.get();
+      if (response->success) {
+        // Update UI in a thread-safe way using QMetaObject::invokeMethod
+        QMetaObject::invokeMethod(this, [this, message = response->message]() {
+          status_label_->setText(QString("Reset successful: %1").arg(QString::fromStdString(message)));
+          QMessageBox::information(this, "Reset Successful", QString::fromStdString(message));
+        }, Qt::QueuedConnection);
+      } else {
+        QMetaObject::invokeMethod(this, [this, message = response->message]() {
+          status_label_->setText(QString("Reset failed: %1").arg(QString::fromStdString(message)));
+          QMessageBox::warning(this, "Reset Failed", QString::fromStdString(message));
+        }, Qt::QueuedConnection);
+      }
+    } catch (const std::exception& e) {
+      QMetaObject::invokeMethod(this, [this, error = std::string(e.what())]() {
+        status_label_->setText(QString("Reset error: %1").arg(QString::fromStdString(error)));
+        QMessageBox::critical(this, "Reset Error", QString::fromStdString(error));
+      }, Qt::QueuedConnection);
     }
-  } else {
-    status_label_->setText("Reset service call timeout");
-    QMessageBox::warning(this, "Timeout", 
-                        "Reset service call timed out. The node may be busy.");
-  }
+  };
+  
+  reset_client_->async_send_request(request, response_received_callback);
 }
 
