@@ -42,6 +42,10 @@ ImageViewerWidget::ImageViewerWidget(QWidget *parent)
   motor_pub_ = node_->create_publisher<control_msgs::msg::MultiDOFCommand>(
     "/velocity_controller/reference", 10);
   
+  // Create reset service client
+  reset_client_ = node_->create_client<std_srvs::srv::Trigger>(
+    "/image_stitching_node/reset_stitching");
+  
   setupUI();
   
   // Timer to process ROS callbacks
@@ -181,6 +185,13 @@ void ImageViewerWidget::setupUI()
   save_image_btn_->setToolTip("Save current image to file");
   connect(save_image_btn_, &QPushButton::clicked, this, &ImageViewerWidget::onSaveImage);
   toolbar_layout_->addWidget(save_image_btn_);
+  
+  // Reset button
+  reset_image_btn_ = new QPushButton("Reset");
+  reset_image_btn_->setMaximumWidth(80);
+  reset_image_btn_->setToolTip("Clear current image and reset frame counter");
+  connect(reset_image_btn_, &QPushButton::clicked, this, &ImageViewerWidget::onResetImage);
+  toolbar_layout_->addWidget(reset_image_btn_);
   
   toolbar_layout_->addStretch();
   
@@ -650,5 +661,69 @@ void ImageViewerWidget::onMotorStop()
   motor_forward_btn_->setChecked(false);
   motor_backward_btn_->setChecked(false);
   publishMotorCommand(0.0, 0.0);
+}
+
+void ImageViewerWidget::onResetImage()
+{
+  // First, clear the local display
+  {
+    std::lock_guard<std::mutex> lock(image_mutex_);
+    
+    // Clear the current image
+    current_image_.release();
+    
+    // Reset frame counter
+    frame_count_ = 0;
+  }
+  
+  // Update the display
+  image_label_->clear();
+  image_label_->setText("Waiting for image...");
+  
+  // Update status
+  status_label_->setText("Resetting stitching node...");
+  
+  // Call the reset service on the stitching node
+  if (!reset_client_) {
+    QMessageBox::warning(this, "Service Error", 
+                        "Reset service client not initialized.");
+    status_label_->setText("Reset failed - service client not available");
+    return;
+  }
+  
+  // Check if service is available
+  if (!reset_client_->service_is_ready()) {
+    QMessageBox::warning(this, "Service Not Available", 
+                        "Image stitching node reset service is not available.\n"
+                        "Make sure the image_stitching_node is running.");
+    status_label_->setText("Reset failed - service not available");
+    return;
+  }
+  
+  // Create request
+  auto request = std::make_shared<std_srvs::srv::Trigger::Request>();
+  
+  // Call service asynchronously
+  auto result_future = reset_client_->async_send_request(request);
+  
+  // Wait for the result (with timeout)
+  auto status = result_future.wait_for(std::chrono::seconds(2));
+  
+  if (status == std::future_status::ready) {
+    auto response = result_future.get();
+    if (response->success) {
+      status_label_->setText(QString("Reset successful: %1").arg(QString::fromStdString(response->message)));
+      QMessageBox::information(this, "Reset Successful", 
+                              QString::fromStdString(response->message));
+    } else {
+      status_label_->setText(QString("Reset failed: %1").arg(QString::fromStdString(response->message)));
+      QMessageBox::warning(this, "Reset Failed", 
+                          QString::fromStdString(response->message));
+    }
+  } else {
+    status_label_->setText("Reset service call timeout");
+    QMessageBox::warning(this, "Timeout", 
+                        "Reset service call timed out. The node may be busy.");
+  }
 }
 

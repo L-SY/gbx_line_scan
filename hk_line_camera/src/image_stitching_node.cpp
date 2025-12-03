@@ -56,6 +56,14 @@ ImageStitchingNode::ImageStitchingNode()
     );
   }
   
+  // Create reset service
+  reset_service_ = this->create_service<std_srvs::srv::Trigger>(
+    "~/reset_stitching",
+    std::bind(&ImageStitchingNode::resetServiceCallback, this, 
+              std::placeholders::_1, std::placeholders::_2)
+  );
+  RCLCPP_INFO(this->get_logger(), "Reset service created: ~/reset_stitching");
+  
   RCLCPP_INFO(this->get_logger(), "Image stitching node initialized");
   RCLCPP_INFO(this->get_logger(), "  Input topic: %s", input_topic_.c_str());
   RCLCPP_INFO(this->get_logger(), "  Output topic: %s", output_topic_.c_str());
@@ -299,6 +307,29 @@ void ImageStitchingNode::timerCallback()
 {
   std::lock_guard<std::mutex> lock(image_mutex_);
   publishStitchedImage();
+}
+
+void ImageStitchingNode::resetServiceCallback(
+  const std::shared_ptr<std_srvs::srv::Trigger::Request> request,
+  std::shared_ptr<std_srvs::srv::Trigger::Response> response)
+{
+  (void)request;  // Unused parameter
+  
+  std::lock_guard<std::mutex> lock(image_mutex_);
+  
+  int previous_count = stitch_count_;
+  cv::Size previous_size = stitched_image_.size();
+  
+  // Reset the stitched image
+  resetStitchedImage();
+  
+  response->success = true;
+  response->message = "Stitched image reset successfully. "
+                     "Previous size: " + std::to_string(previous_size.width) + "x" + 
+                     std::to_string(previous_size.height) + ", " +
+                     "Previous count: " + std::to_string(previous_count);
+  
+  RCLCPP_INFO(this->get_logger(), "Reset service called: %s", response->message.c_str());
 }
 
 int main(int argc, char * argv[])

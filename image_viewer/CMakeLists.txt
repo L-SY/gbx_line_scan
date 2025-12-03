@@ -9,6 +9,7 @@ endif()
 find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(sensor_msgs REQUIRED)
+find_package(std_srvs REQUIRED)
 find_package(cv_bridge REQUIRED)
 find_package(control_msgs REQUIRED)
 find_package(OpenCV REQUIRED)
@@ -47,6 +48,7 @@ target_link_libraries(image_viewer
 ament_target_dependencies(image_viewer
   rclcpp
   sensor_msgs
+  std_srvs
   cv_bridge
   control_msgs
 )

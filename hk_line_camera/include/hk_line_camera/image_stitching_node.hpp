@@ -4,6 +4,7 @@
 #include <rclcpp/rclcpp.hpp>
 #include <sensor_msgs/msg/image.hpp>
 #include <std_msgs/msg/header.hpp>
+#include <std_srvs/srv/trigger.hpp>
 #include <cv_bridge/cv_bridge.h>
 #include <opencv2/opencv.hpp>
 #include <memory>
@@ -29,10 +30,16 @@ private:
   // Timer callback for periodic publishing (if enabled)
   void timerCallback();
   
+  // Service callback for reset
+  void resetServiceCallback(
+    const std::shared_ptr<std_srvs::srv::Trigger::Request> request,
+    std::shared_ptr<std_srvs::srv::Trigger::Response> response);
+  
   // ROS2 subscribers and publishers
   rclcpp::Subscription<sensor_msgs::msg::Image>::SharedPtr image_sub_;
   rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr stitched_image_pub_;
   rclcpp::TimerBase::SharedPtr publish_timer_;
+  rclcpp::Service<std_srvs::srv::Trigger>::SharedPtr reset_service_;
   
   // Image storage
   cv::Mat stitched_image_;

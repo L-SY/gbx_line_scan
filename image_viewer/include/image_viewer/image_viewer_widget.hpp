@@ -16,6 +16,7 @@
 #include <rclcpp/rclcpp.hpp>
 #include <sensor_msgs/msg/image.hpp>
 #include <control_msgs/msg/multi_dof_command.hpp>
+#include <std_srvs/srv/trigger.hpp>
 #include <cv_bridge/cv_bridge.h>
 #include <opencv2/opencv.hpp>
 #include <QTimer>
@@ -43,6 +44,7 @@ private slots:
   void onRefreshTopics();
   void onImageReceived();
   void onSaveImage();
+  void onResetImage();
   void onMotorForward();
   void onMotorBackward();
   void onMotorStop();
@@ -62,6 +64,7 @@ private:
   std::shared_ptr<rclcpp::Node> node_;
   rclcpp::Subscription<sensor_msgs::msg::Image>::SharedPtr image_sub_;
   rclcpp::Publisher<control_msgs::msg::MultiDOFCommand>::SharedPtr motor_pub_;
+  rclcpp::Client<std_srvs::srv::Trigger>::SharedPtr reset_client_;
   
   // UI Components
   QVBoxLayout* main_layout_;
@@ -75,6 +78,7 @@ private:
   QPushButton* zoom_100_btn_;
   QPushButton* refresh_topics_btn_;
   QPushButton* save_image_btn_;
+  QPushButton* reset_image_btn_;
   
   // Motor control UI
   QPushButton* motor_forward_btn_;
