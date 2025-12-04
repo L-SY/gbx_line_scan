@@ -712,7 +712,6 @@ void ImageViewerWidget::onResetImage()
         // Update UI in a thread-safe way using QMetaObject::invokeMethod
         QMetaObject::invokeMethod(this, [this, message = response->message]() {
           status_label_->setText(QString("Reset successful: %1").arg(QString::fromStdString(message)));
-          QMessageBox::information(this, "Reset Successful", QString::fromStdString(message));
         }, Qt::QueuedConnection);
       } else {
         QMetaObject::invokeMethod(this, [this, message = response->message]() {
