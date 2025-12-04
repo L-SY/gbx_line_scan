@@ -1,0 +1,41 @@
+hk_line_camera_node:
+  ros__parameters:
+    # Camera selection
+    camera_index: 0
+    frame_id: "camera_frame"
+    image_topic: "image_raw"
+    
+    # Dual Trigger Configuration (同时使用帧触发和行触发)
+    # This configuration enables both frame trigger and line trigger simultaneously
+    
+    # Frame Trigger parameters (FrameBurstStart - 帧触发)
+    # Controls when to start acquiring a frame - triggered by Line1
+    frame_trigger_enabled: true   # Enable frame trigger
+    frame_trigger_mode: 1         # 1 = On
+    frame_trigger_source: 1       # Line1 (帧触发线在line1上)
+    frame_trigger_activation: 0   # 0 = RisingEdge
+    frame_trigger_delay: 0.0      # No delay
+    
+    # Line Trigger parameters (LineStart - 行触发)
+    # Controls the timing of each line acquisition - triggered by encoder
+    line_trigger_enabled: true    # Enable line trigger
+    line_trigger_mode: 1          # 1 = On
+    line_trigger_source: 6        # 6 = EncoderModuleOut
+    line_trigger_activation: 0    # 0 = RisingEdge
+    line_trigger_delay: 0.0       # No delay
+    
+    # Encoder parameters (used with line trigger)
+    encoder_selector: 0
+    # EncoderSourceA and B define the encoder input lines
+    encoder_source_a: 3           # Line3 for encoder A
+    encoder_source_b: 0           # Line0 for encoder B
+    encoder_trigger_mode: 0       # 0 = AnyDirection
+    encoder_counter_mode: 0       # 0 = IgnoreDirection
+    encoder_counter: 0
+    encoder_counter_max: 10000
+    encoder_max_reverse_counter: 0
+    
+    # Exposure parameters
+    # Exposure time in microseconds
+    exposure_time_us: 300.0
+

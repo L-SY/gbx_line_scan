@@ -5,19 +5,23 @@ hk_line_camera_node:
     frame_id: "camera_frame"
     image_topic: "image_raw"
     
-    # Trigger parameters
-    # TriggerSelector: 9 = LineStart, 6 = FrameBurstStart
-    trigger_selector: 9
-    # TriggerMode: 1 = On, 0 = Off
-    trigger_mode: 1
-    # TriggerSource: 6 = EncoderModuleOut, 0 = Line0, 1 = Line1, etc.
-    trigger_source: 6
-    # TriggerActivation: 0 = RisingEdge, 1 = FallingEdge
-    trigger_activation: 0
-    # Trigger delay in seconds
-    trigger_delay: 0.0
+    # Frame Trigger parameters (FrameBurstStart - 帧触发)
+    # Controls when to start acquiring a frame
+    frame_trigger_enabled: false  # Set to true to enable frame trigger
+    frame_trigger_mode: 1         # 1 = On, 0 = Off
+    frame_trigger_source: 1       # 0 = Line0, 1 = Line1, etc. (帧触发线在line1上)
+    frame_trigger_activation: 0   # 0 = RisingEdge, 1 = FallingEdge
+    frame_trigger_delay: 0.0      # Trigger delay in seconds
     
-    # Encoder parameters
+    # Line Trigger parameters (LineStart - 行触发)
+    # Controls the timing of each line acquisition
+    line_trigger_enabled: true    # Set to true to enable line trigger
+    line_trigger_mode: 1          # 1 = On, 0 = Off
+    line_trigger_source: 6        # 6 = EncoderModuleOut, 0 = Line0, 1 = Line1, etc.
+    line_trigger_activation: 0    # 0 = RisingEdge, 1 = FallingEdge
+    line_trigger_delay: 0.0       # Trigger delay in seconds
+    
+    # Encoder parameters (used with line trigger)
     encoder_selector: 0
     # EncoderSourceA: Line number (e.g., 0 = Line0, 3 = Line3)
     encoder_source_a: 3

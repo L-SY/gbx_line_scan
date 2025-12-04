@@ -9,14 +9,21 @@ HkLineCameraNode::HkLineCameraNode()
     camera_initialized_(false)
 {
   // Declare parameters
-  // Trigger parameters
-  this->declare_parameter<int>("trigger_selector", 9);  // 9 = LineStart, 6 = FrameBurstStart
-  this->declare_parameter<int>("trigger_mode", 1);      // 1 = On, 0 = Off
-  this->declare_parameter<int>("trigger_source", 6);    // 6 = EncoderModuleOut, 0 = Line0, etc.
-  this->declare_parameter<int>("trigger_activation", 0); // 0 = RisingEdge, 1 = FallingEdge
-  this->declare_parameter<double>("trigger_delay", 0.0);
+  // Frame Trigger parameters (FrameBurstStart - 帧触发)
+  this->declare_parameter<bool>("frame_trigger_enabled", false);
+  this->declare_parameter<int>("frame_trigger_mode", 1);      // 1 = On, 0 = Off
+  this->declare_parameter<int>("frame_trigger_source", 1);    // 1 = Line1
+  this->declare_parameter<int>("frame_trigger_activation", 0); // 0 = RisingEdge, 1 = FallingEdge
+  this->declare_parameter<double>("frame_trigger_delay", 0.0);
   
-  // Encoder parameters
+  // Line Trigger parameters (LineStart - 行触发)
+  this->declare_parameter<bool>("line_trigger_enabled", true);
+  this->declare_parameter<int>("line_trigger_mode", 1);      // 1 = On, 0 = Off
+  this->declare_parameter<int>("line_trigger_source", 6);    // 6 = EncoderModuleOut
+  this->declare_parameter<int>("line_trigger_activation", 0); // 0 = RisingEdge, 1 = FallingEdge
+  this->declare_parameter<double>("line_trigger_delay", 0.0);
+  
+  // Encoder parameters (used with line trigger)
   this->declare_parameter<int>("encoder_selector", 0);
   this->declare_parameter<int>("encoder_source_a", 3);  // Line 3
   this->declare_parameter<int>("encoder_source_b", 0);  // Line 0
@@ -35,12 +42,21 @@ HkLineCameraNode::HkLineCameraNode()
   this->declare_parameter<std::string>("image_topic", "image_raw");
   
   // Get parameters
-  trigger_selector_ = this->get_parameter("trigger_selector").as_int();
-  trigger_mode_ = this->get_parameter("trigger_mode").as_int();
-  trigger_source_ = this->get_parameter("trigger_source").as_int();
-  trigger_activation_ = this->get_parameter("trigger_activation").as_int();
-  trigger_delay_ = this->get_parameter("trigger_delay").as_double();
+  // Frame trigger
+  frame_trigger_enabled_ = this->get_parameter("frame_trigger_enabled").as_bool();
+  frame_trigger_mode_ = this->get_parameter("frame_trigger_mode").as_int();
+  frame_trigger_source_ = this->get_parameter("frame_trigger_source").as_int();
+  frame_trigger_activation_ = this->get_parameter("frame_trigger_activation").as_int();
+  frame_trigger_delay_ = this->get_parameter("frame_trigger_delay").as_double();
   
+  // Line trigger
+  line_trigger_enabled_ = this->get_parameter("line_trigger_enabled").as_bool();
+  line_trigger_mode_ = this->get_parameter("line_trigger_mode").as_int();
+  line_trigger_source_ = this->get_parameter("line_trigger_source").as_int();
+  line_trigger_activation_ = this->get_parameter("line_trigger_activation").as_int();
+  line_trigger_delay_ = this->get_parameter("line_trigger_delay").as_double();
+  
+  // Encoder
   encoder_selector_ = this->get_parameter("encoder_selector").as_int();
   encoder_source_a_ = this->get_parameter("encoder_source_a").as_int();
   encoder_source_b_ = this->get_parameter("encoder_source_b").as_int();
@@ -201,12 +217,27 @@ bool HkLineCameraNode::configureCameraParameters()
 {
   RCLCPP_INFO(this->get_logger(), "Configuring camera parameters...");
   
-  if (!setTriggerParameters()) {
-    return false;
+  // Configure frame trigger if enabled
+  if (frame_trigger_enabled_) {
+    if (!setFrameTriggerParameters()) {
+      return false;
+    }
   }
   
-  if (!setEncoderParameters()) {
-    return false;
+  // Configure line trigger if enabled
+  if (line_trigger_enabled_) {
+    if (!setLineTriggerParameters()) {
+      return false;
+    }
+    
+    // Set encoder parameters for line trigger
+    if (!setEncoderParameters()) {
+      return false;
+    }
+  }
+  
+  if (!frame_trigger_enabled_ && !line_trigger_enabled_) {
+    RCLCPP_WARN(this->get_logger(), "Both frame and line triggers are disabled - camera will run in free-run mode");
   }
   
   if (!setExposureParameters()) {
@@ -217,43 +248,89 @@ bool HkLineCameraNode::configureCameraParameters()
   return true;
 }
 
-bool HkLineCameraNode::setTriggerParameters()
+bool HkLineCameraNode::setFrameTriggerParameters()
 {
-  RCLCPP_INFO(this->get_logger(), "Setting trigger parameters...");
+  RCLCPP_INFO(this->get_logger(), "Setting frame trigger parameters (帧触发)...");
   
-  // Set Trigger Selector
-  if (!setEnumValue("TriggerSelector", trigger_selector_)) {
-    RCLCPP_ERROR(this->get_logger(), "Failed to set TriggerSelector");
+  // Set Trigger Selector to FrameBurstStart (6)
+  if (!setEnumValue("TriggerSelector", 6)) {
+    RCLCPP_ERROR(this->get_logger(), "Failed to set TriggerSelector to FrameBurstStart");
     return false;
   }
-  RCLCPP_INFO(this->get_logger(), "TriggerSelector set to %d", trigger_selector_);
+  RCLCPP_INFO(this->get_logger(), "TriggerSelector set to FrameBurstStart (6)");
   
   // Set Trigger Mode
-  if (!setEnumValue("TriggerMode", trigger_mode_)) {
-    RCLCPP_ERROR(this->get_logger(), "Failed to set TriggerMode");
+  if (!setEnumValue("TriggerMode", frame_trigger_mode_)) {
+    RCLCPP_ERROR(this->get_logger(), "Failed to set frame TriggerMode");
     return false;
   }
-  RCLCPP_INFO(this->get_logger(), "TriggerMode set to %d", trigger_mode_);
+  RCLCPP_INFO(this->get_logger(), "Frame TriggerMode set to %d", frame_trigger_mode_);
   
-  // Set Trigger Source
-  if (!setEnumValue("TriggerSource", trigger_source_)) {
-    RCLCPP_ERROR(this->get_logger(), "Failed to set TriggerSource");
+  // Set Trigger Source (typically Line0 or Line1)
+  if (!setEnumValue("TriggerSource", frame_trigger_source_)) {
+    RCLCPP_ERROR(this->get_logger(), "Failed to set frame TriggerSource");
     return false;
   }
-  RCLCPP_INFO(this->get_logger(), "TriggerSource set to %d", trigger_source_);
+  RCLCPP_INFO(this->get_logger(), "Frame TriggerSource set to Line%d", frame_trigger_source_);
   
   // Set Trigger Activation
-  if (!setEnumValue("TriggerActivation", trigger_activation_)) {
-    RCLCPP_WARN(this->get_logger(), "Failed to set TriggerActivation, may not be supported");
+  if (!setEnumValue("TriggerActivation", frame_trigger_activation_)) {
+    RCLCPP_WARN(this->get_logger(), "Failed to set frame TriggerActivation, may not be supported");
   } else {
-    RCLCPP_INFO(this->get_logger(), "TriggerActivation set to %d", trigger_activation_);
+    RCLCPP_INFO(this->get_logger(), "Frame TriggerActivation set to %d", frame_trigger_activation_);
   }
   
   // Set Trigger Delay
-  if (!setFloatValue("TriggerDelay", static_cast<float>(trigger_delay_))) {
-    RCLCPP_WARN(this->get_logger(), "Failed to set TriggerDelay, may not be supported");
+  if (!setFloatValue("TriggerDelay", static_cast<float>(frame_trigger_delay_))) {
+    RCLCPP_WARN(this->get_logger(), "Failed to set frame TriggerDelay, may not be supported");
   } else {
-    RCLCPP_INFO(this->get_logger(), "TriggerDelay set to %.4f", trigger_delay_);
+    RCLCPP_INFO(this->get_logger(), "Frame TriggerDelay set to %.4f", frame_trigger_delay_);
+  }
+  
+  return true;
+}
+
+bool HkLineCameraNode::setLineTriggerParameters()
+{
+  RCLCPP_INFO(this->get_logger(), "Setting line trigger parameters (行触发)...");
+  
+  // Set Trigger Selector to LineStart (9)
+  if (!setEnumValue("TriggerSelector", 9)) {
+    RCLCPP_ERROR(this->get_logger(), "Failed to set TriggerSelector to LineStart");
+    return false;
+  }
+  RCLCPP_INFO(this->get_logger(), "TriggerSelector set to LineStart (9)");
+  
+  // Set Trigger Mode
+  if (!setEnumValue("TriggerMode", line_trigger_mode_)) {
+    RCLCPP_ERROR(this->get_logger(), "Failed to set line TriggerMode");
+    return false;
+  }
+  RCLCPP_INFO(this->get_logger(), "Line TriggerMode set to %d", line_trigger_mode_);
+  
+  // Set Trigger Source (typically EncoderModuleOut)
+  if (!setEnumValue("TriggerSource", line_trigger_source_)) {
+    RCLCPP_ERROR(this->get_logger(), "Failed to set line TriggerSource");
+    return false;
+  }
+  if (line_trigger_source_ == 6) {
+    RCLCPP_INFO(this->get_logger(), "Line TriggerSource set to EncoderModuleOut (6)");
+  } else {
+    RCLCPP_INFO(this->get_logger(), "Line TriggerSource set to %d", line_trigger_source_);
+  }
+  
+  // Set Trigger Activation
+  if (!setEnumValue("TriggerActivation", line_trigger_activation_)) {
+    RCLCPP_WARN(this->get_logger(), "Failed to set line TriggerActivation, may not be supported");
+  } else {
+    RCLCPP_INFO(this->get_logger(), "Line TriggerActivation set to %d", line_trigger_activation_);
+  }
+  
+  // Set Trigger Delay
+  if (!setFloatValue("TriggerDelay", static_cast<float>(line_trigger_delay_))) {
+    RCLCPP_WARN(this->get_logger(), "Failed to set line TriggerDelay, may not be supported");
+  } else {
+    RCLCPP_INFO(this->get_logger(), "Line TriggerDelay set to %.4f", line_trigger_delay_);
   }
   
   return true;

@@ -50,16 +50,84 @@ ros2 launch hk_line_camera hk_line_camera.launch.py
 ros2 launch hk_line_camera hk_line_camera.launch.py config_file:=/path/to/your/config.yaml
 ```
 
+### Trigger Modes
+
+This package supports flexible trigger configuration for line scan cameras. You can use:
+1. **Frame Trigger Only** (仅帧触发)
+2. **Line Trigger Only** (仅行触发)
+3. **Both Frame and Line Trigger** (同时使用帧触发和行触发) ⭐
+
+#### Frame Trigger (帧触发) - FrameBurstStart
+- Controls **when to start acquiring a frame**
+- Typically triggered by external signal on Line0 or Line1
+- Useful for synchronizing frame acquisition with external events
+
+#### Line Trigger (行触发) - LineStart
+- Controls **the timing of each line acquisition**
+- Typically triggered by encoder output for motion-synchronized scanning
+- Requires encoder configuration (EncoderSourceA/B)
+
+#### Dual Trigger Mode (同时使用) ⭐ **RECOMMENDED**
+When both triggers are enabled:
+- **Frame Trigger (Line1)**: Determines when to start a new frame
+- **Line Trigger (Encoder)**: Determines when to capture each line within the frame
+
+This is the typical configuration for line scan cameras on moving platforms!
+
+### Configuration Examples
+
+#### 1. Use Dual Trigger (Frame + Line) - RECOMMENDED
+
+```bash
+ros2 launch hk_line_camera hk_line_camera.launch.py config_file:=config/camera_params_dual_trigger.yaml
+```
+
+Configuration:
+```yaml
+frame_trigger_enabled: true   # Enable frame trigger on Line1
+frame_trigger_source: 1       # Line1
+
+line_trigger_enabled: true    # Enable line trigger from encoder
+line_trigger_source: 6        # EncoderModuleOut
+
+encoder_source_a: 3           # Encoder A on Line3
+encoder_source_b: 0           # Encoder B on Line0
+```
+
+#### 2. Use Frame Trigger Only
+
+```bash
+ros2 launch hk_line_camera hk_line_camera.launch.py config_file:=config/camera_params_frame_trigger.yaml
+```
+
+#### 3. Use Line Trigger Only (Default)
+
+```bash
+ros2 launch hk_line_camera hk_line_camera.launch.py
+```
+
 ### Parameters
 
 All parameters can be configured via YAML file or command line:
 
-#### Trigger Parameters
-- `trigger_selector`: Trigger selector (9 = LineStart, 6 = FrameBurstStart)
-- `trigger_mode`: Trigger mode (1 = On, 0 = Off)
-- `trigger_source`: Trigger source (6 = EncoderModuleOut, 0 = Line0, etc.)
-- `trigger_activation`: Trigger activation (0 = RisingEdge, 1 = FallingEdge)
-- `trigger_delay`: Trigger delay in seconds
+#### Frame Trigger Parameters (帧触发)
+- `frame_trigger_enabled`: Enable/disable frame trigger (default: false)
+- `frame_trigger_mode`: Trigger mode (1 = On, 0 = Off)
+- `frame_trigger_source`: Trigger source line
+  - 0 = Line0, 1 = Line1, 2 = Line2, etc.
+- `frame_trigger_activation`: Trigger activation (0 = RisingEdge, 1 = FallingEdge)
+- `frame_trigger_delay`: Trigger delay in seconds
+
+#### Line Trigger Parameters (行触发)
+- `line_trigger_enabled`: Enable/disable line trigger (default: true)
+- `line_trigger_mode`: Trigger mode (1 = On, 0 = Off)
+- `line_trigger_source`: Trigger source
+  - 6 = EncoderModuleOut (typical for line scan)
+  - 0 = Line0, 1 = Line1, etc.
+- `line_trigger_activation`: Trigger activation (0 = RisingEdge, 1 = FallingEdge)
+- `line_trigger_delay`: Trigger delay in seconds
+
+**Note**: Both triggers can be enabled simultaneously for dual trigger mode.
 
 #### Encoder Parameters
 - `encoder_selector`: Encoder selector (typically 0)

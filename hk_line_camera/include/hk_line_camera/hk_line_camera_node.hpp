@@ -30,7 +30,8 @@ private:
   void processImage(unsigned char *pData, MV_FRAME_OUT_INFO_EX* pFrameInfo);
   
   // Parameter setting functions
-  bool setTriggerParameters();
+  bool setFrameTriggerParameters();
+  bool setLineTriggerParameters();
   bool setEncoderParameters();
   bool setExposureParameters();
   
@@ -48,14 +49,21 @@ private:
   rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr image_pub_;
   
   // Parameters
-  // Trigger parameters
-  int trigger_selector_;
-  int trigger_mode_;
-  int trigger_source_;
-  int trigger_activation_;
-  double trigger_delay_;
+  // Frame Trigger parameters (FrameBurstStart - 帧触发)
+  bool frame_trigger_enabled_;
+  int frame_trigger_mode_;
+  int frame_trigger_source_;
+  int frame_trigger_activation_;
+  double frame_trigger_delay_;
   
-  // Encoder parameters
+  // Line Trigger parameters (LineStart - 行触发)
+  bool line_trigger_enabled_;
+  int line_trigger_mode_;
+  int line_trigger_source_;
+  int line_trigger_activation_;
+  double line_trigger_delay_;
+  
+  // Encoder parameters (used with line trigger)
   int encoder_selector_;
   int encoder_source_a_;
   int encoder_source_b_;
