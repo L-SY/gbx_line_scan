@@ -6,25 +6,29 @@ hk_line_camera_node:
     image_topic: "image_raw"
     
     # ============================================
-    # Dual Trigger Configuration (默认配置)
-    # 同时使用帧触发和行触发 / Both triggers enabled
+    # Trigger Configuration (触发配置)
     # ============================================
+    # 通过 enable 参数灵活配置触发模式：
+    # - 仅帧触发：frame_trigger_enabled: true, line_trigger_enabled: false
+    # - 仅行触发：frame_trigger_enabled: false, line_trigger_enabled: true
+    # - 双触发：frame_trigger_enabled: true, line_trigger_enabled: true
+    # - 自由运行：frame_trigger_enabled: false, line_trigger_enabled: false
     
     # Frame Trigger parameters (FrameBurstStart - 帧触发)
     # Controls when to start acquiring a frame - triggered by Line1
-    frame_trigger_enabled: true   # Enable frame trigger (默认启用)
-    frame_trigger_mode: 1         # 1 = On
-    frame_trigger_source: 1       # Line1 (帧触发线在line1上)
-    frame_trigger_activation: 0   # 0 = RisingEdge
-    frame_trigger_delay: 0.0      # No delay
+    frame_trigger_enabled: true  # Enable/disable frame trigger
+    frame_trigger_mode: 1         # 1 = On, 0 = Off
+    frame_trigger_source: 1       # 1 = Line1 (帧触发线在line1上)
+    frame_trigger_activation: 2   # 0 = RisingEdge, 1 = FallingEdge, 2 = LevelHigh, 3 = LevelLow
+    frame_trigger_delay: 0.0      # Trigger delay in microseconds
     
     # Line Trigger parameters (LineStart - 行触发)
     # Controls the timing of each line acquisition - triggered by encoder
-    line_trigger_enabled: true    # Enable line trigger (默认启用)
-    line_trigger_mode: 1          # 1 = On
+    line_trigger_enabled: true    # Enable/disable line trigger
+    line_trigger_mode: 1          # 1 = On, 0 = Off
     line_trigger_source: 6        # 6 = EncoderModuleOut
-    line_trigger_activation: 0    # 0 = RisingEdge
-    line_trigger_delay: 0.0       # No delay
+    line_trigger_activation: 0    # 0 = RisingEdge, 1 = FallingEdge, 2 = LevelHigh, 3 = LevelLow
+    line_trigger_delay: 0.0       # Trigger delay in microseconds
     
     # Encoder parameters (used with line trigger)
     encoder_selector: 0
