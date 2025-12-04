@@ -5,21 +5,26 @@ hk_line_camera_node:
     frame_id: "camera_frame"
     image_topic: "image_raw"
     
+    # ============================================
+    # Dual Trigger Configuration (默认配置)
+    # 同时使用帧触发和行触发 / Both triggers enabled
+    # ============================================
+    
     # Frame Trigger parameters (FrameBurstStart - 帧触发)
-    # Controls when to start acquiring a frame
-    frame_trigger_enabled: false  # Set to true to enable frame trigger
-    frame_trigger_mode: 1         # 1 = On, 0 = Off
-    frame_trigger_source: 1       # 0 = Line0, 1 = Line1, etc. (帧触发线在line1上)
-    frame_trigger_activation: 0   # 0 = RisingEdge, 1 = FallingEdge
-    frame_trigger_delay: 0.0      # Trigger delay in seconds
+    # Controls when to start acquiring a frame - triggered by Line1
+    frame_trigger_enabled: true   # Enable frame trigger (默认启用)
+    frame_trigger_mode: 1         # 1 = On
+    frame_trigger_source: 1       # Line1 (帧触发线在line1上)
+    frame_trigger_activation: 0   # 0 = RisingEdge
+    frame_trigger_delay: 0.0      # No delay
     
     # Line Trigger parameters (LineStart - 行触发)
-    # Controls the timing of each line acquisition
-    line_trigger_enabled: true    # Set to true to enable line trigger
-    line_trigger_mode: 1          # 1 = On, 0 = Off
-    line_trigger_source: 6        # 6 = EncoderModuleOut, 0 = Line0, 1 = Line1, etc.
-    line_trigger_activation: 0    # 0 = RisingEdge, 1 = FallingEdge
-    line_trigger_delay: 0.0       # Trigger delay in seconds
+    # Controls the timing of each line acquisition - triggered by encoder
+    line_trigger_enabled: true    # Enable line trigger (默认启用)
+    line_trigger_mode: 1          # 1 = On
+    line_trigger_source: 6        # 6 = EncoderModuleOut
+    line_trigger_activation: 0    # 0 = RisingEdge
+    line_trigger_delay: 0.0       # No delay
     
     # Encoder parameters (used with line trigger)
     encoder_selector: 0

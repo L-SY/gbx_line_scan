@@ -100,11 +100,14 @@ encoder_source_b: 0           # Encoder B on Line0
 ros2 launch hk_line_camera hk_line_camera.launch.py config_file:=config/camera_params_frame_trigger.yaml
 ```
 
-#### 3. Use Line Trigger Only (Default)
+#### 3. Use Line Trigger Only
 
 ```bash
+# Modify camera_params.yaml: set frame_trigger_enabled to false
 ros2 launch hk_line_camera hk_line_camera.launch.py
 ```
+
+**Note**: The default configuration now uses **dual trigger mode**. To use line trigger only, set `frame_trigger_enabled: false` in the config file.
 
 ### Parameters
 
@@ -163,11 +166,18 @@ The image stitching node can accumulate multiple line scan images vertically to 
 ros2 launch hk_line_camera image_stitching.launch.py
 ```
 
-### Launch Camera with Stitching
+### Launch Camera with Stitching (Default: Dual Trigger Mode)
+
+The default configuration now uses dual trigger mode (frame + line trigger).
 
 ```bash
 ros2 launch hk_line_camera camera_with_stitching.launch.py
 ```
+
+This will:
+- Enable **frame trigger on Line1** (controls when to start a frame)
+- Enable **line trigger with encoder** (controls line-by-line acquisition)
+- Start the image stitching node to combine line scan images
 
 ### Stitching Parameters
 

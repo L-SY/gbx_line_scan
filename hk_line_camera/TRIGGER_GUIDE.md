@@ -4,9 +4,11 @@
 
 本 ROS2 包支持三种触发模式 / This package supports three trigger modes:
 
-1. **双触发模式（推荐）** / **Dual Trigger Mode (RECOMMENDED)** ⭐
+1. **双触发模式（默认，推荐）** / **Dual Trigger Mode (DEFAULT, RECOMMENDED)** ⭐
 2. **仅帧触发** / **Frame Trigger Only**
 3. **仅行触发** / **Line Trigger Only**
+
+> **注意**: 默认配置 (`camera_params.yaml`) 现在使用双触发模式！
 
 ## 硬件连线 / Hardware Connections
 
@@ -18,7 +20,7 @@
 
 ## 三种模式详解 / Three Modes Explained
 
-### 1. 双触发模式（同时使用帧触发和行触发）⭐
+### 1. 双触发模式（同时使用帧触发和行触发）⭐ **[默认配置]**
 
 **最适合的应用场景：**
 - 传送带/移动平台上的线扫成像
@@ -28,7 +30,16 @@
 1. **帧触发（Line1）**：外部信号触发开始新一帧的采集
 2. **行触发（Encoder）**：编码器输出控制每一行的采集时机
 
-**使用方法：**
+**使用方法（默认配置）：**
+```bash
+# 相机节点（使用默认双触发配置）
+ros2 launch hk_line_camera hk_line_camera.launch.py
+
+# 相机 + 拼接节点（推荐用于双触发模式）
+ros2 launch hk_line_camera camera_with_stitching.launch.py
+```
+
+或显式指定配置文件：
 ```bash
 ros2 launch hk_line_camera hk_line_camera.launch.py \
   config_file:=config/camera_params_dual_trigger.yaml
@@ -66,7 +77,7 @@ frame_trigger_source: 1       # Line1 作为触发源
 line_trigger_enabled: false   # 禁用行触发
 ```
 
-### 3. 仅行触发模式（默认）
+### 3. 仅行触发模式
 
 **适合的应用场景：**
 - 连续扫描，由编码器控制行频率
@@ -74,6 +85,7 @@ line_trigger_enabled: false   # 禁用行触发
 
 **使用方法：**
 ```bash
+# 需要修改 camera_params.yaml: 设置 frame_trigger_enabled: false
 ros2 launch hk_line_camera hk_line_camera.launch.py
 ```
 
