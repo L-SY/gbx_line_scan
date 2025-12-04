@@ -19,7 +19,7 @@ hk_line_camera_node:
     frame_trigger_enabled: true  # Enable/disable frame trigger
     frame_trigger_mode: 1         # 1 = On, 0 = Off
     frame_trigger_source: 1       # 1 = Line1 (帧触发线在line1上)
-    frame_trigger_activation: 2   # 0 = RisingEdge, 1 = FallingEdge, 2 = LevelHigh, 3 = LevelLow
+    frame_trigger_activation: 3   # 0 = RisingEdge, 1 = FallingEdge, 2 = LevelHigh, 3 = LevelLow
     frame_trigger_delay: 0.0      # Trigger delay in microseconds
     
     # Line Trigger parameters (LineStart - 行触发)
