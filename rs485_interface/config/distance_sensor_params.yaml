@@ -1,0 +1,29 @@
+distance_sensor_node:
+  ros__parameters:
+    # Serial port device path (e.g., /dev/ttyACM0, /dev/ttyACM1, etc.)
+    device_path: "/dev/ttyACM0"
+    
+    # Baud rate: 9600, 19200, 38400, 57600, 115200, or 256000
+    baud_rate: 115200
+    
+    # MODBUS slave address (typically 1-255)
+    slave_address: 1
+    
+    # Publishing rate in Hz
+    publish_rate: 10.0
+    
+    # Frame ID for the sensor (used in Range message header)
+    frame_id: "distance_sensor"
+    
+    # Minimum measurement range in millimeters
+    min_range: 0.0
+    
+    # Maximum measurement range in millimeters
+    max_range: 500.0
+    
+    # Field of view in radians (for Range message)
+    field_of_view: 0.1
+    
+    # Communication timeout in milliseconds
+    timeout_ms: 1000
+
