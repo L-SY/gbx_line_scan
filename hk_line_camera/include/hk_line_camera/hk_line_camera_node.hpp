@@ -34,6 +34,7 @@ private:
   bool setLineTriggerParameters();
   bool setEncoderParameters();
   bool setExposureParameters();
+  bool setImageHeight();
   
   // Helper functions
   bool setEnumValue(const std::string& key, int value);
@@ -75,6 +76,9 @@ private:
   
   // Exposure parameters
   double exposure_time_us_;
+  
+  // Image control parameters
+  int image_height_;  // Maximum image height (0 = no limit)
   
   // Camera selection
   int camera_index_;

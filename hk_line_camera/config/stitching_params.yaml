@@ -6,6 +6,8 @@ image_stitching_node:
     frame_id: "camera_frame"           # Frame ID for published images
     
     # Stitching limits
+    # Note: If camera_params.yaml sets image_height, each frame will be cropped to that height.
+    # max_height here controls the total height of the stitched image (0 = unlimited)
     max_height: 0                      # Maximum height in pixels (0 = unlimited)
     max_stitch_count: 0                # Maximum number of images to stitch (0 = unlimited)
     

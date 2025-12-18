@@ -36,6 +36,9 @@ HkLineCameraNode::HkLineCameraNode()
   // Exposure parameters
   this->declare_parameter<double>("exposure_time_us", 300.0);
   
+  // Image control parameters
+  this->declare_parameter<int>("image_height", 0);  // 0 = no limit
+  
   // Camera selection
   this->declare_parameter<int>("camera_index", 0);
   this->declare_parameter<std::string>("frame_id", "camera_frame");
@@ -68,6 +71,8 @@ HkLineCameraNode::HkLineCameraNode()
   
   exposure_time_us_ = this->get_parameter("exposure_time_us").as_double();
   
+  image_height_ = this->get_parameter("image_height").as_int();
+  
   camera_index_ = this->get_parameter("camera_index").as_int();
   frame_id_ = this->get_parameter("frame_id").as_string();
   std::string image_topic = this->get_parameter("image_topic").as_string();
@@ -80,6 +85,11 @@ HkLineCameraNode::HkLineCameraNode()
   if (initializeCamera()) {
     RCLCPP_INFO(this->get_logger(), "Camera initialized successfully");
     RCLCPP_INFO(this->get_logger(), "Image publisher initialized on topic: %s", image_topic.c_str());
+    if (image_height_ > 0) {
+      RCLCPP_INFO(this->get_logger(), "Image height configured: %d pixels (set via camera SDK)", image_height_);
+    } else {
+      RCLCPP_INFO(this->get_logger(), "Image height: using camera default");
+    }
   } else {
     RCLCPP_ERROR(this->get_logger(), "Failed to initialize camera");
     rclcpp::shutdown();
@@ -242,6 +252,11 @@ bool HkLineCameraNode::configureCameraParameters()
   
   if (!setExposureParameters()) {
     return false;
+  }
+  
+  // Set image height if specified
+  if (!setImageHeight()) {
+    RCLCPP_WARN(this->get_logger(), "Failed to set image height, continuing anyway");
   }
   
   RCLCPP_INFO(this->get_logger(), "Camera parameters configured successfully");
@@ -413,6 +428,57 @@ bool HkLineCameraNode::setExposureParameters()
   return true;
 }
 
+bool HkLineCameraNode::setImageHeight()
+{
+  if (image_height_ <= 0) {
+    // No height limit specified
+    return true;
+  }
+  
+  RCLCPP_INFO(this->get_logger(), "Setting image height to %d pixels...", image_height_);
+  
+  // Get Height parameter info to check range and increment
+  MVCC_INTVALUE_EX stHeight = {0};
+  int nRet = MV_CC_GetIntValueEx(camera_handle_, "Height", &stHeight);
+  if (MV_OK == nRet) {
+    RCLCPP_INFO(this->get_logger(), 
+                "Height parameter: current=%ld, min=%ld, max=%ld, inc=%ld",
+                stHeight.nCurValue, stHeight.nMin, stHeight.nMax, stHeight.nInc);
+    
+    // Check if value is within range
+    if (image_height_ < static_cast<int>(stHeight.nMin) || 
+        image_height_ > static_cast<int>(stHeight.nMax)) {
+      RCLCPP_WARN(this->get_logger(), 
+                  "Requested height %d is out of range [%ld, %ld]. Using closest valid value.",
+                  image_height_, stHeight.nMin, stHeight.nMax);
+      image_height_ = std::max(static_cast<int>(stHeight.nMin), 
+                               std::min(static_cast<int>(stHeight.nMax), image_height_));
+    }
+    
+    // Adjust to be a multiple of increment if needed
+    if (stHeight.nInc > 0 && (image_height_ % static_cast<int>(stHeight.nInc)) != 0) {
+      int adjusted = ((image_height_ / static_cast<int>(stHeight.nInc)) * static_cast<int>(stHeight.nInc));
+      RCLCPP_WARN(this->get_logger(), 
+                  "Height %d is not a multiple of increment %ld. Adjusting to %d.",
+                  image_height_, stHeight.nInc, adjusted);
+      image_height_ = adjusted;
+    }
+    
+    // Set Height parameter
+    if (setIntValue("Height", image_height_)) {
+      RCLCPP_INFO(this->get_logger(), "Image height set to %d pixels", image_height_);
+      return true;
+    } else {
+      RCLCPP_ERROR(this->get_logger(), "Failed to set Height parameter");
+      return false;
+    }
+  } else {
+    RCLCPP_WARN(this->get_logger(), 
+                "Height parameter not available (nRet=0x%x). Camera may not support setting image height.", nRet);
+    return false;
+  }
+}
+
 bool HkLineCameraNode::setEnumValue(const std::string& key, int value)
 {
   int nRet = MV_CC_SetEnumValue(camera_handle_, key.c_str(), value);
@@ -507,17 +573,19 @@ void HkLineCameraNode::processImage(unsigned char *pData, MV_FRAME_OUT_INFO_EX* 
         break;
     }
     
+    // Note: Image height is now controlled by camera SDK, no software cropping needed
+    
     // Create ROS2 image message
     sensor_msgs::msg::Image img_msg;
     img_msg.header.stamp = this->now();
     img_msg.header.frame_id = frame_id_;
-    img_msg.width = width;
-    img_msg.height = height;
+    img_msg.width = image.cols;
+    img_msg.height = image.rows;
     img_msg.encoding = encoding;
     img_msg.is_bigendian = false;
     img_msg.step = image.step;
     
-    size_t data_size = img_msg.step * height;
+    size_t data_size = img_msg.step * img_msg.height;
     img_msg.data.resize(data_size);
     memcpy(img_msg.data.data(), image.data, data_size);
     
