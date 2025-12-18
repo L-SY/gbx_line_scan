@@ -51,4 +51,4 @@ hk_line_camera_node:
     # Image control parameters
     # Image height in pixels (0 = use camera default, set via camera SDK before starting capture)
     # For line scan cameras, this controls the frame height captured by the camera
-    image_height: 50
+    image_height: 8
