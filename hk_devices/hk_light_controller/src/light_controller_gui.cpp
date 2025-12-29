@@ -8,8 +8,12 @@ LightControllerGUI::LightControllerGUI(QWidget *parent)
   : QMainWindow(parent),
     light1_enabled_(false),
     light1_brightness_(0),
+    light1_voltage_(0.0f),
+    light1_current_(0.0f),
     light2_enabled_(false),
     light2_brightness_(0),
+    light2_voltage_(0.0f),
+    light2_current_(0.0f),
     current_trigger_source_("Unknown")
 {
   setWindowTitle("光源控制器测试界面");
@@ -68,12 +72,22 @@ void LightControllerGUI::setupUI()
   light1_brightness_label_ = new QLabel("亮度: 0", this);
   light1_layout->addWidget(light1_brightness_label_, 1, 1);
   
+  light1_voltage_label_ = new QLabel("电压: 0.00 V", this);
+  light1_layout->addWidget(light1_voltage_label_, 2, 0);
+  
+  light1_current_label_ = new QLabel("电流: 0.00 A", this);
+  light1_layout->addWidget(light1_current_label_, 2, 1);
+  
+  light1_power_label_ = new QLabel("功率: 0.00 W", this);
+  light1_power_label_->setStyleSheet("QLabel { font-weight: bold; color: #0066CC; }");
+  light1_layout->addWidget(light1_power_label_, 3, 0, 1, 2);
+  
   light1_brightness_slider_ = new QSlider(Qt::Horizontal, this);
   light1_brightness_slider_->setRange(0, 255);
   light1_brightness_slider_->setValue(0);
   connect(light1_brightness_slider_, &QSlider::valueChanged, 
           this, &LightControllerGUI::onLight1BrightnessChanged);
-  light1_layout->addWidget(light1_brightness_slider_, 2, 0, 1, 2);
+  light1_layout->addWidget(light1_brightness_slider_, 4, 0, 1, 2);
   
   main_layout->addWidget(light1_group_);
   
@@ -92,12 +106,22 @@ void LightControllerGUI::setupUI()
   light2_brightness_label_ = new QLabel("亮度: 0", this);
   light2_layout->addWidget(light2_brightness_label_, 1, 1);
   
+  light2_voltage_label_ = new QLabel("电压: 0.00 V", this);
+  light2_layout->addWidget(light2_voltage_label_, 2, 0);
+  
+  light2_current_label_ = new QLabel("电流: 0.00 A", this);
+  light2_layout->addWidget(light2_current_label_, 2, 1);
+  
+  light2_power_label_ = new QLabel("功率: 0.00 W", this);
+  light2_power_label_->setStyleSheet("QLabel { font-weight: bold; color: #0066CC; }");
+  light2_layout->addWidget(light2_power_label_, 3, 0, 1, 2);
+  
   light2_brightness_slider_ = new QSlider(Qt::Horizontal, this);
   light2_brightness_slider_->setRange(0, 255);
   light2_brightness_slider_->setValue(0);
   connect(light2_brightness_slider_, &QSlider::valueChanged, 
           this, &LightControllerGUI::onLight2BrightnessChanged);
-  light2_layout->addWidget(light2_brightness_slider_, 2, 0, 1, 2);
+  light2_layout->addWidget(light2_brightness_slider_, 4, 0, 1, 2);
   
   main_layout->addWidget(light2_group_);
   
@@ -159,6 +183,22 @@ void LightControllerGUI::setupROS2()
   connection_status_sub_ = node_->create_subscription<std_msgs::msg::Bool>(
     "connection_status", 10,
     std::bind(&LightControllerGUI::connectionStatusCallback, this, std::placeholders::_1));
+  
+  light1_voltage_sub_ = node_->create_subscription<std_msgs::msg::Float32>(
+    "light1/voltage", 10,
+    std::bind(&LightControllerGUI::light1VoltageCallback, this, std::placeholders::_1));
+  
+  light1_current_sub_ = node_->create_subscription<std_msgs::msg::Float32>(
+    "light1/current", 10,
+    std::bind(&LightControllerGUI::light1CurrentCallback, this, std::placeholders::_1));
+  
+  light2_voltage_sub_ = node_->create_subscription<std_msgs::msg::Float32>(
+    "light2/voltage", 10,
+    std::bind(&LightControllerGUI::light2VoltageCallback, this, std::placeholders::_1));
+  
+  light2_current_sub_ = node_->create_subscription<std_msgs::msg::Float32>(
+    "light2/current", 10,
+    std::bind(&LightControllerGUI::light2CurrentCallback, this, std::placeholders::_1));
   
   // Create service clients
   light1_service_client_ = node_->create_client<std_srvs::srv::SetBool>("light1/set_enabled");
@@ -285,6 +325,30 @@ void LightControllerGUI::connectionStatusCallback(const std_msgs::msg::Bool::Sha
   }
 }
 
+void LightControllerGUI::light1VoltageCallback(const std_msgs::msg::Float32::SharedPtr msg)
+{
+  light1_voltage_ = msg->data;
+  updateUI();
+}
+
+void LightControllerGUI::light1CurrentCallback(const std_msgs::msg::Float32::SharedPtr msg)
+{
+  light1_current_ = msg->data;
+  updateUI();
+}
+
+void LightControllerGUI::light2VoltageCallback(const std_msgs::msg::Float32::SharedPtr msg)
+{
+  light2_voltage_ = msg->data;
+  updateUI();
+}
+
+void LightControllerGUI::light2CurrentCallback(const std_msgs::msg::Float32::SharedPtr msg)
+{
+  light2_current_ = msg->data;
+  updateUI();
+}
+
 void LightControllerGUI::updateUI()
 {
   // Update light 1
@@ -298,6 +362,10 @@ void LightControllerGUI::updateUI()
     light1_status_label_->setText("状态: 关闭");
   }
   light1_brightness_label_->setText(QString("亮度: %1").arg(light1_brightness_));
+  light1_voltage_label_->setText(QString("电压: %1 V").arg(light1_voltage_, 0, 'f', 2));
+  light1_current_label_->setText(QString("电流: %1 A").arg(light1_current_, 0, 'f', 2));
+  float light1_power = light1_voltage_ * light1_current_;
+  light1_power_label_->setText(QString("功率: %1 W").arg(light1_power, 0, 'f', 2));
   
   // Update light 2
   if (light2_enabled_) {
@@ -310,6 +378,10 @@ void LightControllerGUI::updateUI()
     light2_status_label_->setText("状态: 关闭");
   }
   light2_brightness_label_->setText(QString("亮度: %1").arg(light2_brightness_));
+  light2_voltage_label_->setText(QString("电压: %1 V").arg(light2_voltage_, 0, 'f', 2));
+  light2_current_label_->setText(QString("电流: %1 A").arg(light2_current_, 0, 'f', 2));
+  float light2_power = light2_voltage_ * light2_current_;
+  light2_power_label_->setText(QString("功率: %1 W").arg(light2_power, 0, 'f', 2));
   
   // Update trigger source
   trigger_status_label_->setText(QString("当前触发源: %1").arg(QString::fromStdString(current_trigger_source_)));

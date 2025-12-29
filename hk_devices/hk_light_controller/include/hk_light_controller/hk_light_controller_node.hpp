@@ -36,6 +36,10 @@ private:
   rclcpp::Publisher<std_msgs::msg::Int32>::SharedPtr light2_brightness_pub_;
   rclcpp::Publisher<std_msgs::msg::String>::SharedPtr trigger_source_pub_;
   rclcpp::Publisher<std_msgs::msg::Bool>::SharedPtr connection_status_pub_;
+  rclcpp::Publisher<std_msgs::msg::Float32>::SharedPtr light1_voltage_pub_;
+  rclcpp::Publisher<std_msgs::msg::Float32>::SharedPtr light1_current_pub_;
+  rclcpp::Publisher<std_msgs::msg::Float32>::SharedPtr light2_voltage_pub_;
+  rclcpp::Publisher<std_msgs::msg::Float32>::SharedPtr light2_current_pub_;
 
   // ROS2 subscribers
   rclcpp::Subscription<std_msgs::msg::Bool>::SharedPtr light1_control_sub_;
@@ -58,6 +62,11 @@ private:
   int64_t light1_brightness_;
   int64_t light2_brightness_;
   std::string current_trigger_source_;
+  float light1_voltage_;
+  float light1_current_;
+  float light2_voltage_;
+  float light2_current_;
+  bool voltage_current_warning_logged_;  // Track if we've already warned about missing params
 
   // Methods
   bool initializeInterface();
@@ -93,6 +102,8 @@ private:
   bool setEnumValue(const std::string& key, int value);
   bool getEnumValue(const std::string& key, int& value);
   bool getEnumEntrySymbolic(const std::string& key, int value, std::string& symbolic);
+  bool getFloatValue(const std::string& key, float& value);
+  void logAvailableVoltageCurrentParams();  // Helper to debug parameter names
 };
 
 #endif // HK_LIGHT_CONTROLLER_NODE_HPP

@@ -2,6 +2,7 @@
 #include <chrono>
 #include <cstring>
 #include <sstream>
+#include <thread>
 
 HkLightControllerNode::HkLightControllerNode()
   : Node("hk_light_controller_node"),
@@ -12,7 +13,12 @@ HkLightControllerNode::HkLightControllerNode()
     light2_enabled_(false),
     light1_brightness_(0),
     light2_brightness_(0),
-    current_trigger_source_("Unknown")
+    current_trigger_source_("Unknown"),
+    light1_voltage_(0.0f),
+    light1_current_(0.0f),
+    light2_voltage_(0.0f),
+    light2_current_(0.0f),
+    voltage_current_warning_logged_(false)
 {
   // Declare parameters
   this->declare_parameter<std::string>("ip_address", "192.168.1.100");
@@ -32,6 +38,10 @@ HkLightControllerNode::HkLightControllerNode()
   light2_brightness_pub_ = this->create_publisher<std_msgs::msg::Int32>("light2/brightness", 10);
   trigger_source_pub_ = this->create_publisher<std_msgs::msg::String>("trigger_source", 10);
   connection_status_pub_ = this->create_publisher<std_msgs::msg::Bool>("connection_status", 10);
+  light1_voltage_pub_ = this->create_publisher<std_msgs::msg::Float32>("light1/voltage", 10);
+  light1_current_pub_ = this->create_publisher<std_msgs::msg::Float32>("light1/current", 10);
+  light2_voltage_pub_ = this->create_publisher<std_msgs::msg::Float32>("light2/voltage", 10);
+  light2_current_pub_ = this->create_publisher<std_msgs::msg::Float32>("light2/current", 10);
 
   // Create subscribers
   light1_control_sub_ = this->create_subscription<std_msgs::msg::Bool>(
@@ -894,6 +904,95 @@ void HkLightControllerNode::updateStatus()
     light1_brightness_ = brightness1;
   }
 
+  // Read light 1 voltage and current
+  // IMPORTANT: Ensure selector is set to channel 1 before reading voltage/current
+  // Voltage and current parameters are channel-specific, just like brightness
+  if (getEnumValue("LightControllerSelector", current_selector)) {
+    if (current_selector != 1) {
+      setEnumValue("LightControllerSelector", 1);
+      // Small delay to ensure selector change takes effect
+      std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    }
+  } else {
+    // If selector doesn't exist, try setting it anyway
+    setEnumValue("LightControllerSelector", 1);
+    std::this_thread::sleep_for(std::chrono::milliseconds(10));
+  }
+  
+  float voltage1 = 0.0f;
+  float current1 = 0.0f;
+  int64_t voltage_int1 = 0;
+  int64_t current_int1 = 0;
+  bool voltage1_found = false;
+  bool current1_found = false;
+  
+  // Read voltage parameter - actual XML node name is "LightVoltageMeasured"
+  const char* voltage_params[] = {
+    "LightVoltageMeasured"   // Actual XML node name from SDK documentation
+  };
+  
+  for (size_t i = 0; i < sizeof(voltage_params)/sizeof(voltage_params[0]) && !voltage1_found; i++) {
+    // Try float first
+    MVCC_FLOATVALUE stFloatValue;
+    memset(&stFloatValue, 0, sizeof(MVCC_FLOATVALUE));
+    int nRet = MV_CC_GetFloatValue(interface_handle_, voltage_params[i], &stFloatValue);
+    if (MV_OK == nRet) {
+      voltage1 = stFloatValue.fCurValue;
+      // Value is in mV, convert to V
+      light1_voltage_ = voltage1 / 1000.0f;
+      voltage1_found = true;
+    } else {
+      // Try integer
+      MVCC_INTVALUE_EX stIntValue;
+      memset(&stIntValue, 0, sizeof(MVCC_INTVALUE_EX));
+      nRet = MV_CC_GetIntValueEx(interface_handle_, voltage_params[i], &stIntValue);
+      if (MV_OK == nRet) {
+        voltage_int1 = stIntValue.nCurValue;
+        // Voltage is in mV, convert to V
+        light1_voltage_ = static_cast<float>(voltage_int1) / 1000.0f;
+        voltage1_found = true;
+      }
+    }
+  }
+  
+  if (!voltage1_found && !voltage_current_warning_logged_) {
+    RCLCPP_DEBUG(this->get_logger(), "Could not read voltage parameter for light1");
+  }
+  
+  // Read current parameter - actual XML node name is "LightCurrentMeasured"
+  const char* current_params[] = {
+    "LightCurrentMeasured"   // Actual XML node name from SDK documentation
+  };
+  
+  for (size_t i = 0; i < sizeof(current_params)/sizeof(current_params[0]) && !current1_found; i++) {
+    // Try float first
+    MVCC_FLOATVALUE stFloatValue;
+    memset(&stFloatValue, 0, sizeof(MVCC_FLOATVALUE));
+    int nRet = MV_CC_GetFloatValue(interface_handle_, current_params[i], &stFloatValue);
+    if (MV_OK == nRet) {
+      current1 = stFloatValue.fCurValue;
+      // Value is in mA, convert to A
+      light1_current_ = current1 / 1000.0f;
+      current1_found = true;
+    } else {
+      // Try integer
+      MVCC_INTVALUE_EX stIntValue;
+      memset(&stIntValue, 0, sizeof(MVCC_INTVALUE_EX));
+      nRet = MV_CC_GetIntValueEx(interface_handle_, current_params[i], &stIntValue);
+      if (MV_OK == nRet) {
+        current_int1 = stIntValue.nCurValue;
+        // Current is in mA, convert to A
+        light1_current_ = static_cast<float>(current_int1) / 1000.0f;
+        current1_found = true;
+      }
+    }
+  }
+  
+  if (!current1_found && !voltage_current_warning_logged_) {
+    RCLCPP_DEBUG(this->get_logger(), "Could not read current parameter for light1");
+    voltage_current_warning_logged_ = true;
+  }
+
   // Light 2 brightness
   if (getEnumValue("LightControllerSelector", current_selector)) {
     if (current_selector != 2) {
@@ -907,6 +1006,95 @@ void HkLightControllerNode::updateStatus()
     light2_brightness_ = brightness2;
   } else if (getIntValue("Intensity", brightness2)) {
     light2_brightness_ = brightness2;
+  }
+
+  // Read light 2 voltage and current
+  // IMPORTANT: Ensure selector is set to channel 2 before reading voltage/current
+  // Voltage and current parameters are channel-specific, just like brightness
+  if (getEnumValue("LightControllerSelector", current_selector)) {
+    if (current_selector != 2) {
+      setEnumValue("LightControllerSelector", 2);
+      // Small delay to ensure selector change takes effect
+      std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    }
+  } else {
+    // If selector doesn't exist, try setting it anyway
+    setEnumValue("LightControllerSelector", 2);
+    std::this_thread::sleep_for(std::chrono::milliseconds(10));
+  }
+  
+  float voltage2 = 0.0f;
+  float current2 = 0.0f;
+  int64_t voltage_int2 = 0;
+  int64_t current_int2 = 0;
+  bool voltage2_found = false;
+  bool current2_found = false;
+  
+  // Read voltage parameter - actual XML node name is "LightVoltageMeasured"
+  const char* voltage_params2[] = {
+    "LightVoltageMeasured"   // Actual XML node name from SDK documentation
+  };
+  
+  for (size_t i = 0; i < sizeof(voltage_params2)/sizeof(voltage_params2[0]) && !voltage2_found; i++) {
+    // Try float first
+    MVCC_FLOATVALUE stFloatValue;
+    memset(&stFloatValue, 0, sizeof(MVCC_FLOATVALUE));
+    int nRet = MV_CC_GetFloatValue(interface_handle_, voltage_params2[i], &stFloatValue);
+    if (MV_OK == nRet) {
+      voltage2 = stFloatValue.fCurValue;
+      // Value is in mV, convert to V
+      light2_voltage_ = voltage2 / 1000.0f;
+      voltage2_found = true;
+    } else {
+      // Try integer
+      MVCC_INTVALUE_EX stIntValue;
+      memset(&stIntValue, 0, sizeof(MVCC_INTVALUE_EX));
+      nRet = MV_CC_GetIntValueEx(interface_handle_, voltage_params2[i], &stIntValue);
+      if (MV_OK == nRet) {
+        voltage_int2 = stIntValue.nCurValue;
+        // Voltage is in mV, convert to V
+        light2_voltage_ = static_cast<float>(voltage_int2) / 1000.0f;
+        voltage2_found = true;
+      }
+    }
+  }
+  
+  if (!voltage2_found && !voltage_current_warning_logged_) {
+    RCLCPP_DEBUG(this->get_logger(), "Could not read voltage parameter for light2");
+  }
+  
+  // Read current parameter - actual XML node name is "LightCurrentMeasured"
+  const char* current_params2[] = {
+    "LightCurrentMeasured"   // Actual XML node name from SDK documentation
+  };
+  
+  for (size_t i = 0; i < sizeof(current_params2)/sizeof(current_params2[0]) && !current2_found; i++) {
+    // Try float first
+    MVCC_FLOATVALUE stFloatValue;
+    memset(&stFloatValue, 0, sizeof(MVCC_FLOATVALUE));
+    int nRet = MV_CC_GetFloatValue(interface_handle_, current_params2[i], &stFloatValue);
+    if (MV_OK == nRet) {
+      current2 = stFloatValue.fCurValue;
+      // Value is in mA, convert to A
+      light2_current_ = current2 / 1000.0f;
+      current2_found = true;
+    } else {
+      // Try integer
+      MVCC_INTVALUE_EX stIntValue;
+      memset(&stIntValue, 0, sizeof(MVCC_INTVALUE_EX));
+      nRet = MV_CC_GetIntValueEx(interface_handle_, current_params2[i], &stIntValue);
+      if (MV_OK == nRet) {
+        current_int2 = stIntValue.nCurValue;
+        // Current is in mA, convert to A
+        light2_current_ = static_cast<float>(current_int2) / 1000.0f;
+        current2_found = true;
+      }
+    }
+  }
+  
+  if (!current2_found && !voltage_current_warning_logged_) {
+    RCLCPP_DEBUG(this->get_logger(), "Could not read current parameter for light2");
+    voltage_current_warning_logged_ = true;
   }
 
   // Read trigger source
@@ -981,6 +1169,23 @@ void HkLightControllerNode::publishStatus()
   std_msgs::msg::String trigger_msg;
   trigger_msg.data = current_trigger_source_;
   trigger_source_pub_->publish(trigger_msg);
+
+  // Publish voltage and current
+  std_msgs::msg::Float32 voltage1_msg;
+  voltage1_msg.data = light1_voltage_;
+  light1_voltage_pub_->publish(voltage1_msg);
+
+  std_msgs::msg::Float32 current1_msg;
+  current1_msg.data = light1_current_;
+  light1_current_pub_->publish(current1_msg);
+
+  std_msgs::msg::Float32 voltage2_msg;
+  voltage2_msg.data = light2_voltage_;
+  light2_voltage_pub_->publish(voltage2_msg);
+
+  std_msgs::msg::Float32 current2_msg;
+  current2_msg.data = light2_current_;
+  light2_current_pub_->publish(current2_msg);
 }
 
 void HkLightControllerNode::light1ControlCallback(const std_msgs::msg::Bool::SharedPtr msg)
@@ -1136,7 +1341,8 @@ bool HkLightControllerNode::getIntValue(const std::string& key, int64_t& value)
   memset(&stIntValue, 0, sizeof(MVCC_INTVALUE_EX));
   int nRet = MV_CC_GetIntValueEx(interface_handle_, key.c_str(), &stIntValue);
   if (MV_OK != nRet) {
-    RCLCPP_DEBUG(this->get_logger(), "Get %s failed! nRet [0x%x]", key.c_str(), nRet);
+    // Only log at DEBUG level to avoid spam, but include error code for debugging
+    RCLCPP_DEBUG(this->get_logger(), "GetIntValue '%s' failed! nRet [0x%x]", key.c_str(), nRet);
     return false;
   }
   value = stIntValue.nCurValue;
@@ -1176,6 +1382,20 @@ bool HkLightControllerNode::getEnumEntrySymbolic(const std::string& key, int val
     return false;
   }
   symbolic = std::string((char*)stEnumentryInfo.chSymbolic);
+  return true;
+}
+
+bool HkLightControllerNode::getFloatValue(const std::string& key, float& value)
+{
+  MVCC_FLOATVALUE stFloatValue;
+  memset(&stFloatValue, 0, sizeof(MVCC_FLOATVALUE));
+  int nRet = MV_CC_GetFloatValue(interface_handle_, key.c_str(), &stFloatValue);
+  if (MV_OK != nRet) {
+    // Only log at DEBUG level to avoid spam, but include error code for debugging
+    RCLCPP_DEBUG(this->get_logger(), "GetFloatValue '%s' failed! nRet [0x%x]", key.c_str(), nRet);
+    return false;
+  }
+  value = stFloatValue.fCurValue;
   return true;
 }
 

@@ -15,6 +15,7 @@
 #include <std_msgs/msg/bool.hpp>
 #include <std_msgs/msg/int32.hpp>
 #include <std_msgs/msg/string.hpp>
+#include <std_msgs/msg/float32.hpp>
 #include <std_srvs/srv/set_bool.hpp>
 #include <std_srvs/srv/trigger.hpp>
 
@@ -56,6 +57,10 @@ private:
   rclcpp::Subscription<std_msgs::msg::Int32>::SharedPtr light2_brightness_sub_;
   rclcpp::Subscription<std_msgs::msg::String>::SharedPtr trigger_source_sub_;
   rclcpp::Subscription<std_msgs::msg::Bool>::SharedPtr connection_status_sub_;
+  rclcpp::Subscription<std_msgs::msg::Float32>::SharedPtr light1_voltage_sub_;
+  rclcpp::Subscription<std_msgs::msg::Float32>::SharedPtr light1_current_sub_;
+  rclcpp::Subscription<std_msgs::msg::Float32>::SharedPtr light2_voltage_sub_;
+  rclcpp::Subscription<std_msgs::msg::Float32>::SharedPtr light2_current_sub_;
   
   // Services
   rclcpp::Client<std_srvs::srv::SetBool>::SharedPtr light1_service_client_;
@@ -78,8 +83,13 @@ private:
   QLabel* light1_status_label_;
   QSlider* light1_brightness_slider_;
   QLabel* light1_brightness_label_;
+  QLabel* light1_voltage_label_;
+  QLabel* light1_current_label_;
+  QLabel* light1_power_label_;
   bool light1_enabled_;
   int light1_brightness_;
+  float light1_voltage_;
+  float light1_current_;
   
   // Light 2 controls
   QGroupBox* light2_group_;
@@ -87,8 +97,13 @@ private:
   QLabel* light2_status_label_;
   QSlider* light2_brightness_slider_;
   QLabel* light2_brightness_label_;
+  QLabel* light2_voltage_label_;
+  QLabel* light2_current_label_;
+  QLabel* light2_power_label_;
   bool light2_enabled_;
   int light2_brightness_;
+  float light2_voltage_;
+  float light2_current_;
   
   // Trigger source
   QGroupBox* trigger_group_;
@@ -106,6 +121,10 @@ private:
   void light2BrightnessCallback(const std_msgs::msg::Int32::SharedPtr msg);
   void triggerSourceCallback(const std_msgs::msg::String::SharedPtr msg);
   void connectionStatusCallback(const std_msgs::msg::Bool::SharedPtr msg);
+  void light1VoltageCallback(const std_msgs::msg::Float32::SharedPtr msg);
+  void light1CurrentCallback(const std_msgs::msg::Float32::SharedPtr msg);
+  void light2VoltageCallback(const std_msgs::msg::Float32::SharedPtr msg);
+  void light2CurrentCallback(const std_msgs::msg::Float32::SharedPtr msg);
   
   void updateUI();
 };
