@@ -12,6 +12,15 @@ find_package(std_msgs REQUIRED)
 find_package(sensor_msgs REQUIRED)
 find_package(std_srvs REQUIRED)
 
+# Qt dependencies for GUI test
+find_package(Qt5 QUIET COMPONENTS Core Widgets)
+if(Qt5_FOUND)
+  set(CMAKE_AUTOMOC ON)
+  set(CMAKE_AUTOUIC ON)
+  set(CMAKE_AUTORCC ON)
+  set(CMAKE_INCLUDE_CURRENT_DIR ON)
+endif()
+
 # Include directories
 include_directories(
   ${CMAKE_CURRENT_SOURCE_DIR}/include
@@ -65,6 +74,54 @@ ament_target_dependencies(distance_sensor_lib
   rclcpp
 )
 
+# RS485 client library
+add_library(rs485_client_lib
+  src/rs485_client.cpp
+)
+
+target_include_directories(rs485_client_lib PUBLIC
+  ${CMAKE_CURRENT_SOURCE_DIR}/include
+)
+
+ament_target_dependencies(rs485_client_lib
+  rclcpp
+)
+
+# RS485 device base library
+add_library(rs485_device_base_lib
+  src/rs485_device_base.cpp
+)
+
+target_include_directories(rs485_device_base_lib PUBLIC
+  ${CMAKE_CURRENT_SOURCE_DIR}/include
+)
+
+target_link_libraries(rs485_device_base_lib
+  rs485_client_lib
+)
+
+ament_target_dependencies(rs485_device_base_lib
+  rclcpp
+)
+
+# LC stepper motor library
+add_library(lc_stepper_motor_lib
+  src/lc_stepper_motor.cpp
+)
+
+target_include_directories(lc_stepper_motor_lib PUBLIC
+  ${CMAKE_CURRENT_SOURCE_DIR}/include
+)
+
+target_link_libraries(lc_stepper_motor_lib
+  rs485_device_base_lib
+  rs485_client_lib
+)
+
+ament_target_dependencies(lc_stepper_motor_lib
+  rclcpp
+)
+
 # Distance sensor ROS node
 add_executable(distance_sensor_node
   src/distance_sensor_node.cpp
@@ -82,20 +139,53 @@ ament_target_dependencies(distance_sensor_node
   std_srvs
 )
 
+# LC Stepper Motor Qt test GUI
+if(Qt5_FOUND)
+  add_executable(lc_stepper_motor_test_gui
+    src/lc_stepper_motor_test_gui_main.cpp
+    src/lc_stepper_motor_test_gui.cpp
+    include/rs485_interface/lc_stepper_motor_test_gui.hpp
+  )
+
+  set_property(TARGET lc_stepper_motor_test_gui PROPERTY AUTOMOC ON)
+
+  target_link_libraries(lc_stepper_motor_test_gui
+    lc_stepper_motor_lib
+    rs485_device_base_lib
+    rs485_client_lib
+    Qt5::Core
+    Qt5::Widgets
+  )
+
+  ament_target_dependencies(lc_stepper_motor_test_gui
+    rclcpp
+  )
+endif()
+
 # Install libraries
 install(TARGETS
   modbus_client_lib
   device_base_lib
   distance_sensor_lib
+  rs485_client_lib
+  rs485_device_base_lib
+  lc_stepper_motor_lib
   ARCHIVE DESTINATION lib
   LIBRARY DESTINATION lib
 )
 
-# Install executable
+# Install executables
 install(TARGETS
   distance_sensor_node
   DESTINATION lib/${PROJECT_NAME}
 )
+
+if(Qt5_FOUND)
+  install(TARGETS
+    lc_stepper_motor_test_gui
+    DESTINATION lib/${PROJECT_NAME}
+  )
+endif()
 
 # Install header files
 install(DIRECTORY include/
