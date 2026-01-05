@@ -1,5 +1,5 @@
-#include "rs485_interface/distance_sensor.hpp"
-#include "rs485_interface/modbus_client.hpp"
+#include "rs485_interface/distance_sensor/distance_sensor.hpp"
+#include "rs485_interface/distance_sensor/modbus_client.hpp"
 
 #include <rclcpp/rclcpp.hpp>
 #include <sensor_msgs/msg/range.hpp>

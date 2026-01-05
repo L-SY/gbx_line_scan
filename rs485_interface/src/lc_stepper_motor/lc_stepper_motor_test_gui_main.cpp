@@ -1,4 +1,4 @@
-#include "rs485_interface/lc_stepper_motor_test_gui.hpp"
+#include "rs485_interface/lc_stepper_motor/lc_stepper_motor_test_gui.hpp"
 #include <QApplication>
 #include <iostream>
 

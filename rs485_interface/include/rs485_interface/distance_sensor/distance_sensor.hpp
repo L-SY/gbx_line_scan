@@ -1,8 +1,8 @@
 #ifndef DISTANCE_SENSOR_HPP
 #define DISTANCE_SENSOR_HPP
 
-#include "rs485_interface/device_base.hpp"
-#include "rs485_interface/modbus_client.hpp"
+#include "rs485_interface/common/device_base.hpp"
+#include "rs485_interface/distance_sensor/modbus_client.hpp"
 
 #include <cstdint>
 #include <string>

@@ -1,4 +1,4 @@
-#include "rs485_interface/distance_sensor.hpp"
+#include "rs485_interface/distance_sensor/distance_sensor.hpp"
 
 namespace rs485_interface
 {

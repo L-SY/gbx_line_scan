@@ -28,7 +28,7 @@ include_directories(
 
 # MODBUS client library
 add_library(modbus_client_lib
-  src/modbus_client.cpp
+  src/distance_sensor/modbus_client.cpp
 )
 
 target_include_directories(modbus_client_lib PUBLIC
@@ -41,7 +41,7 @@ ament_target_dependencies(modbus_client_lib
 
 # Device base library
 add_library(device_base_lib
-  src/device_base.cpp
+  src/common/device_base.cpp
 )
 
 target_include_directories(device_base_lib PUBLIC
@@ -58,7 +58,7 @@ ament_target_dependencies(device_base_lib
 
 # Distance sensor library
 add_library(distance_sensor_lib
-  src/distance_sensor.cpp
+  src/distance_sensor/distance_sensor.cpp
 )
 
 target_include_directories(distance_sensor_lib PUBLIC
@@ -76,7 +76,7 @@ ament_target_dependencies(distance_sensor_lib
 
 # RS485 client library
 add_library(rs485_client_lib
-  src/rs485_client.cpp
+  src/lc_stepper_motor/rs485_client.cpp
 )
 
 target_include_directories(rs485_client_lib PUBLIC
@@ -89,7 +89,7 @@ ament_target_dependencies(rs485_client_lib
 
 # RS485 device base library
 add_library(rs485_device_base_lib
-  src/rs485_device_base.cpp
+  src/lc_stepper_motor/rs485_device_base.cpp
 )
 
 target_include_directories(rs485_device_base_lib PUBLIC
@@ -106,7 +106,7 @@ ament_target_dependencies(rs485_device_base_lib
 
 # LC stepper motor library
 add_library(lc_stepper_motor_lib
-  src/lc_stepper_motor.cpp
+  src/lc_stepper_motor/lc_stepper_motor.cpp
 )
 
 target_include_directories(lc_stepper_motor_lib PUBLIC
@@ -124,7 +124,7 @@ ament_target_dependencies(lc_stepper_motor_lib
 
 # Distance sensor ROS node
 add_executable(distance_sensor_node
-  src/distance_sensor_node.cpp
+  src/distance_sensor/distance_sensor_node.cpp
 )
 
 target_link_libraries(distance_sensor_node
@@ -142,9 +142,9 @@ ament_target_dependencies(distance_sensor_node
 # LC Stepper Motor Qt test GUI
 if(Qt5_FOUND)
   add_executable(lc_stepper_motor_test_gui
-    src/lc_stepper_motor_test_gui_main.cpp
-    src/lc_stepper_motor_test_gui.cpp
-    include/rs485_interface/lc_stepper_motor_test_gui.hpp
+    src/lc_stepper_motor/lc_stepper_motor_test_gui_main.cpp
+    src/lc_stepper_motor/lc_stepper_motor_test_gui.cpp
+    include/rs485_interface/lc_stepper_motor/lc_stepper_motor_test_gui.hpp
   )
 
   set_property(TARGET lc_stepper_motor_test_gui PROPERTY AUTOMOC ON)

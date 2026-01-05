@@ -1,6 +1,6 @@
-#include "rs485_interface/lc_stepper_motor_test_gui.hpp"
-#include "rs485_interface/rs485_client.hpp"
-#include "rs485_interface/lc_stepper_motor.hpp"
+#include "rs485_interface/lc_stepper_motor/lc_stepper_motor_test_gui.hpp"
+#include "rs485_interface/lc_stepper_motor/rs485_client.hpp"
+#include "rs485_interface/lc_stepper_motor/lc_stepper_motor.hpp"
 
 #include <QMessageBox>
 #include <iostream>

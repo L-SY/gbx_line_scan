@@ -1,4 +1,4 @@
-#include "rs485_interface/lc_stepper_motor.hpp"
+#include "rs485_interface/lc_stepper_motor/lc_stepper_motor.hpp"
 #include <cstring>
 
 namespace rs485_interface
