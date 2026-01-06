@@ -82,6 +82,7 @@ public:
    */
   bool setModbusMode();
 
+
   /**
    * @brief Force DI enable
    * @return true if successful, false otherwise
@@ -114,10 +115,22 @@ public:
    * @return true if successful, false otherwise
    * 
    * Converts RPM to Pr/s and sets speed
-   * Formula: Pr/s = RPM * (encoder_resolution / 60)
-   * For typical servo: encoder_resolution = 10000, so Pr/s = RPM * 10000 / 60
+   * According to manual: 20000 Pr/s = 120 RPM
+   * Formula: Pr/s = RPM * (20000 / 120) = RPM * 166.666...
+   * This is equivalent to encoder_resolution = 10000 pulses/rev
    */
   bool setSpeedRPM(double speed_rpm);
+
+  /**
+   * @brief Set motor speed in RPM with custom encoder resolution
+   * @param speed_rpm Speed in RPM
+   * @param encoder_resolution Encoder resolution in pulses per revolution
+   * @return true if successful, false otherwise
+   * 
+   * Converts RPM to Pr/s using custom encoder resolution
+   * Formula: Pr/s = RPM * (encoder_resolution / 60)
+   */
+  bool setSpeedRPM(double speed_rpm, double encoder_resolution);
 
   /**
    * @brief Enable or disable motor
@@ -147,6 +160,15 @@ public:
   bool readCurrentSpeed(double & speed_rpm);
 
   /**
+   * @brief Read current operating mode
+   * @param mode Output parameter for current mode (should be 3 for PV mode)
+   * @return true if successful, false otherwise
+   * 
+   * Reads P10-03 to verify we're in speed control mode
+   */
+  bool readOperatingMode(uint16_t & mode);
+
+  /**
    * @brief Initialize motor for speed control
    * @return true if successful, false otherwise
    * 
@@ -157,9 +179,19 @@ public:
    */
   bool initializeSpeedControl();
 
+  /**
+   * @brief Read a register value (for debugging)
+   * @param register_address Register address to read
+   * @param value Output parameter for the read value
+   * @return true if successful, false otherwise
+   */
+  bool readRegister(uint16_t register_address, uint16_t & value);
+
 private:
   // Register addresses (calculated from parameter numbers)
-  static constexpr uint16_t REG_P02_00 = 0x0200;  // Control mode
+  // Note: According to manual, P02-00 -> 02 00 (hex) -> 0x0200 = 512 (decimal)
+  // But some devices use 0-based addressing, so we might need to try 0x01FF (511) as well
+  static constexpr uint16_t REG_P02_00 = 0x0200;  // Control mode (512 decimal)
   static constexpr uint16_t REG_P0D_17 = 0x0D11;  // Force DI enable
   static constexpr uint16_t REG_P0D_18 = 0x0D12;  // Motor enable/disable
   static constexpr uint16_t REG_P0D_08 = 0x0D08;  // Direction control

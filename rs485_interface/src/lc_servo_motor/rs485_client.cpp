@@ -171,20 +171,69 @@ bool RS485ClientServo::writeSingleRegister(
   }
 
   // Expected echo response: [SlaveAddr][0x06][RegAddrHi][RegAddrLo][ValueHi][ValueLo][CRCHi][CRCLo]
-  size_t expected_length = 8;  // 1+1+2+2+2(CRC)
+  // Total: 6 data bytes + 2 CRC bytes = 8 bytes
+  // Exception response: [SlaveAddr][0x86][ErrorCode][CRCHi][CRCLo] = 5 bytes
+  size_t expected_data_length = 6;  // Data bytes only (without CRC)
   std::vector<uint8_t> response;
-  if (!receiveFrame(expected_length, response)) {
+  if (!receiveFrame(expected_data_length, response)) {
     return false;
+  }
+
+  // Check for exception response (5 bytes total: 3 data + 2 CRC)
+  if (response.size() == 3) {
+    if (response[0] == slave_address && response[1] == 0x86) {
+      // Exception response: function code 0x86 = 0x06 + 0x80
+      uint8_t error_code = response[2];
+      std::string error_msg = "Modbus exception response: error code 0x";
+      char hex[3];
+      snprintf(hex, sizeof(hex), "%02X", error_code);
+      error_msg += hex;
+      error_msg += " (";
+      switch (error_code) {
+        case 0x01: error_msg += "Illegal Function"; break;
+        case 0x02: error_msg += "Illegal Data Address"; break;
+        case 0x03: error_msg += "Illegal Data Value"; break;
+        case 0x04: error_msg += "Slave Device Failure"; break;
+        case 0x06: error_msg += "Slave Device Busy"; break;
+        default: error_msg += "Unknown error"; break;
+      }
+      error_msg += ")";
+      last_error_ = error_msg;
+      return false;
+    }
   }
 
   // Verify response matches request (echo check)
+  // Response should have 6 bytes: [SlaveAddr][0x06][RegAddrHi][RegAddrLo][ValueHi][ValueLo]
   if (response.size() < 6) {
-    last_error_ = "Invalid response length";
+    last_error_ = "Invalid response length: got " + std::to_string(response.size()) + 
+                  " bytes, expected 6 (normal) or 3 (exception)";
     return false;
   }
 
-  if (response[0] != slave_address || response[1] != 0x06) {
-    last_error_ = "Response does not match request";
+  if (response[0] != slave_address) {
+    last_error_ = "Response slave address mismatch: got " + std::to_string(response[0]) + 
+                  ", expected " + std::to_string(slave_address);
+    return false;
+  }
+
+  if (response[1] != 0x06) {
+    last_error_ = "Response function code mismatch: got 0x" + 
+                  std::to_string(response[1]) + ", expected 0x06";
+    return false;
+  }
+
+  // Verify register address matches
+  uint16_t resp_reg_addr = (response[2] << 8) | response[3];
+  if (resp_reg_addr != register_address) {
+    last_error_ = "Response register address mismatch";
+    return false;
+  }
+
+  // Verify value matches
+  uint16_t resp_value = (response[4] << 8) | response[5];
+  if (resp_value != value) {
+    last_error_ = "Response value mismatch";
     return false;
   }
 
@@ -344,25 +393,31 @@ bool RS485ClientServo::receiveFrame(size_t expected_length, std::vector<uint8_t>
   // Wait for first byte with longer timeout, then shorter timeout for remaining bytes
   auto start_time = std::chrono::steady_clock::now();
   auto timeout_duration = std::chrono::milliseconds(timeout_ms_);
-  auto inter_char_timeout = std::chrono::milliseconds(50);  // Max time between characters
+  
+  // Wait a bit longer after sending to allow device to process
+  std::this_thread::sleep_for(std::chrono::milliseconds(10));
 
   while (bytes_read < total_expected) {
     // Check overall timeout
     auto elapsed = std::chrono::steady_clock::now() - start_time;
     if (elapsed > timeout_duration) {
-      last_error_ = "Read timeout";
+      if (bytes_read > 0) {
+        // We got some data but not enough, return what we have
+        break;
+      }
+      last_error_ = "Read timeout: no data received";
       return false;
     }
 
-    // Use select with a short timeout
+    // Use select with a timeout
     fd_set read_fds;
     struct timeval select_timeout;
     
     FD_ZERO(&read_fds);
     FD_SET(serial_fd_, &read_fds);
     
-    // Use inter-character timeout for remaining bytes, longer for first byte
-    long timeout_ms = (bytes_read == 0) ? timeout_ms_ : 50;
+    // Use longer timeout for first byte, shorter for subsequent bytes
+    long timeout_ms = (bytes_read == 0) ? timeout_ms_ : 100;
     select_timeout.tv_sec = timeout_ms / 1000;
     select_timeout.tv_usec = (timeout_ms % 1000) * 1000;
 
@@ -372,15 +427,13 @@ bool RS485ClientServo::receiveFrame(size_t expected_length, std::vector<uint8_t>
       return false;
     }
     if (select_result == 0) {
-      // Timeout - if we have some data, check if frame is complete
-      if (bytes_read > 0) {
-        // Check if we have enough data (at least address + function code + CRC)
-        if (bytes_read >= 4) {
-          break;  // Try to verify what we have
-        }
+      // Timeout - if we have some data, check if frame might be complete
+      if (bytes_read >= 4) {
+        // We have at least address + function code + some data, might be complete
+        break;
       }
-      last_error_ = "Read timeout";
-      return false;
+      // No data yet, continue waiting if we haven't exceeded overall timeout
+      continue;
     }
 
     if (FD_ISSET(serial_fd_, &read_fds)) {
@@ -400,9 +453,40 @@ bool RS485ClientServo::receiveFrame(size_t expected_length, std::vector<uint8_t>
     }
   }
 
-  // Check if we have minimum required bytes
+  // Check if we have minimum required bytes (address + function code + CRC)
   if (response.size() < 4) {
-    last_error_ = "Incomplete frame received";
+    last_error_ = "Incomplete frame received: got " + std::to_string(response.size()) + 
+                  " bytes, minimum 4 required";
+    return false;
+  }
+
+  // Check if this might be an exception response (3 data bytes + 2 CRC = 5 bytes total)
+  // Exception response format: [SlaveAddr][FunctionCode+0x80][ErrorCode][CRCHi][CRCLo]
+  if (response.size() == 5) {
+    // Verify CRC first
+    if (verifyCRC(response)) {
+      // Valid exception response, remove CRC and return it for handling
+      response.resize(response.size() - 2);
+      return true;
+    }
+  }
+
+  // Verify we have enough bytes for the expected data + CRC
+  if (response.size() < expected_length + 2) {
+    // Try to verify CRC with what we have
+    if (response.size() >= 4) {
+      // Check if we can verify CRC on partial frame
+      std::vector<uint8_t> partial_frame(response.begin(), response.end());
+      if (verifyCRC(partial_frame)) {
+        // CRC is valid, but frame is shorter than expected
+        // This might be an error response or shorter frame
+        // Remove CRC and return it for handling
+        response.resize(response.size() - 2);
+        return true;
+      }
+    }
+    last_error_ = "Incomplete frame: got " + std::to_string(response.size()) + 
+                  " bytes, expected " + std::to_string(expected_length + 2);
     return false;
   }
 

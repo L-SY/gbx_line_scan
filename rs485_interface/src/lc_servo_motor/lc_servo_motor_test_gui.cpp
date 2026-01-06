@@ -4,6 +4,8 @@
 
 #include <QMessageBox>
 #include <iostream>
+#include <thread>
+#include <chrono>
 
 LcServoMotorTestGUI::LcServoMotorTestGUI(QWidget * parent)
 : QWidget(parent),
@@ -236,6 +238,10 @@ void LcServoMotorTestGUI::onInitializeClicked()
   if (!motor_ || !is_connected_) {
     return;
   }
+  
+  logMessage("Initializing speed control...");
+  
+  // Use the existing initializeSpeedControl function which does all steps
   if (motor_->initializeSpeedControl()) {
     logMessage("Speed control initialized successfully");
     error_label_->setText("");
@@ -281,6 +287,8 @@ void LcServoMotorTestGUI::onForwardClicked()
   if (!motor_ || !is_connected_) {
     return;
   }
+  // In speed control mode, make sure speed is set before setting direction
+  // The speed should already be set, so just set direction
   if (motor_->setDirection(rs485_interface::LcServoMotor::Direction::FORWARD)) {
     logMessage("Set direction to Forward");
     error_label_->setText("");
@@ -327,8 +335,34 @@ void LcServoMotorTestGUI::onSpeedChanged(double value)
   if (!motor_ || !is_connected_) {
     return;
   }
+  
+  // Verify we're in PV mode before setting speed
+  uint16_t mode = 0;
+  if (motor_->readOperatingMode(mode)) {
+    if (mode != 3) {
+      std::string error = "Warning: Not in PV mode (current mode: " + std::to_string(mode) + 
+                         "). Please initialize speed control first.";
+      error_label_->setText(QString::fromStdString(error));
+      logMessage(error);
+      return;
+    }
+  } else {
+    logMessage("Warning: Could not verify operating mode");
+  }
+  
+  // Calculate Pr/s for debugging
+  double speed_prs = value * (20000.0 / 120.0);
+  uint32_t speed_prs_int = static_cast<uint32_t>(speed_prs + 0.5);
+  logMessage("Setting speed: " + std::to_string(value) + " RPM = " + 
+             std::to_string(speed_prs_int) + " Pr/s");
+  
+  // Important: In speed control mode, stop first, set speed, then restart
+  // Stop the motor first
+  motor_->setDirection(rs485_interface::LcServoMotor::Direction::STOP);
+  std::this_thread::sleep_for(std::chrono::milliseconds(100));
+  
+  // Set the speed
   if (motor_->setSpeedRPM(value)) {
-    logMessage("Speed set to " + std::to_string(value) + " RPM");
     error_label_->setText("");
   } else {
     std::string error = "Failed to set speed: " + motor_->getLastError();
@@ -342,11 +376,31 @@ void LcServoMotorTestGUI::onUpdateSpeed()
   if (!motor_ || !is_connected_) {
     return;
   }
+  
+  // First check if we're in PV mode
+  uint16_t mode = 0;
+  if (motor_->readOperatingMode(mode)) {
+    if (mode != 3) {
+      // Not in PV mode, show warning
+      current_speed_label_->setText("Not in PV mode (mode: " + QString::number(mode) + ")");
+      current_speed_label_->setStyleSheet("color: red; font-weight: bold; font-size: 14px;");
+      return;
+    }
+  }
+  
+  // Read current speed
   double current_speed = 0.0;
   if (motor_->readCurrentSpeed(current_speed)) {
     current_speed_label_->setText(QString::number(current_speed, 'f', 1));
+    // If speed is way too high, it might be in wrong mode
+    if (current_speed > 1000) {
+      current_speed_label_->setStyleSheet("color: orange; font-weight: bold; font-size: 14px;");
+    } else {
+      current_speed_label_->setStyleSheet("font-weight: bold; font-size: 14px;");
+    }
   } else {
     current_speed_label_->setText("Error");
+    current_speed_label_->setStyleSheet("color: red; font-weight: bold; font-size: 14px;");
   }
 }
 
