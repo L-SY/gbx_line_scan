@@ -210,6 +210,25 @@ ament_target_dependencies(lc_servo_motor_lib
   rclcpp
 )
 
+# LC Servo Motor Multi library
+add_library(lc_servo_motor_multi_lib
+  src/lc_servo_motor/lc_servo_motor_multi.cpp
+)
+
+target_include_directories(lc_servo_motor_multi_lib PUBLIC
+  ${CMAKE_CURRENT_SOURCE_DIR}/include
+)
+
+target_link_libraries(lc_servo_motor_multi_lib
+  lc_servo_motor_lib
+  rs485_device_base_servo_lib
+  rs485_client_servo_lib
+)
+
+ament_target_dependencies(lc_servo_motor_multi_lib
+  rclcpp
+)
+
 # LC Servo Motor Qt test GUI
 if(Qt5_FOUND)
   add_executable(lc_servo_motor_test_gui
@@ -231,6 +250,28 @@ if(Qt5_FOUND)
   ament_target_dependencies(lc_servo_motor_test_gui
     rclcpp
   )
+
+  # LC Servo Motor Multi-Motor Qt test GUI
+  add_executable(lc_servo_motor_multi_test_gui
+    src/lc_servo_motor/lc_servo_motor_multi_test_gui_main.cpp
+    src/lc_servo_motor/lc_servo_motor_multi_test_gui.cpp
+    include/rs485_interface/lc_servo_motor/lc_servo_motor_multi_test_gui.hpp
+  )
+
+  set_property(TARGET lc_servo_motor_multi_test_gui PROPERTY AUTOMOC ON)
+
+  target_link_libraries(lc_servo_motor_multi_test_gui
+    lc_servo_motor_multi_lib
+    lc_servo_motor_lib
+    rs485_device_base_servo_lib
+    rs485_client_servo_lib
+    Qt5::Core
+    Qt5::Widgets
+  )
+
+  ament_target_dependencies(lc_servo_motor_multi_test_gui
+    rclcpp
+  )
 endif()
 
 # Install libraries
@@ -244,6 +285,7 @@ install(TARGETS
   rs485_client_servo_lib
   rs485_device_base_servo_lib
   lc_servo_motor_lib
+  lc_servo_motor_multi_lib
   ARCHIVE DESTINATION lib
   LIBRARY DESTINATION lib
 )
@@ -258,6 +300,7 @@ if(Qt5_FOUND)
   install(TARGETS
     lc_stepper_motor_test_gui
     lc_servo_motor_test_gui
+    lc_servo_motor_multi_test_gui
     DESTINATION lib/${PROJECT_NAME}
   )
 endif()
