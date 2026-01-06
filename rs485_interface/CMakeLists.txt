@@ -162,6 +162,77 @@ if(Qt5_FOUND)
   )
 endif()
 
+# RS485 client library for servo (with EVEN-1 parity support)
+add_library(rs485_client_servo_lib
+  src/lc_servo_motor/rs485_client.cpp
+)
+
+target_include_directories(rs485_client_servo_lib PUBLIC
+  ${CMAKE_CURRENT_SOURCE_DIR}/include
+)
+
+ament_target_dependencies(rs485_client_servo_lib
+  rclcpp
+)
+
+# RS485 device base library for servo
+add_library(rs485_device_base_servo_lib
+  src/lc_servo_motor/rs485_device_base.cpp
+)
+
+target_include_directories(rs485_device_base_servo_lib PUBLIC
+  ${CMAKE_CURRENT_SOURCE_DIR}/include
+)
+
+target_link_libraries(rs485_device_base_servo_lib
+  rs485_client_servo_lib
+)
+
+ament_target_dependencies(rs485_device_base_servo_lib
+  rclcpp
+)
+
+# LC servo motor library
+add_library(lc_servo_motor_lib
+  src/lc_servo_motor/lc_servo_motor.cpp
+)
+
+target_include_directories(lc_servo_motor_lib PUBLIC
+  ${CMAKE_CURRENT_SOURCE_DIR}/include
+)
+
+target_link_libraries(lc_servo_motor_lib
+  rs485_device_base_servo_lib
+  rs485_client_servo_lib
+)
+
+ament_target_dependencies(lc_servo_motor_lib
+  rclcpp
+)
+
+# LC Servo Motor Qt test GUI
+if(Qt5_FOUND)
+  add_executable(lc_servo_motor_test_gui
+    src/lc_servo_motor/lc_servo_motor_test_gui_main.cpp
+    src/lc_servo_motor/lc_servo_motor_test_gui.cpp
+    include/rs485_interface/lc_servo_motor/lc_servo_motor_test_gui.hpp
+  )
+
+  set_property(TARGET lc_servo_motor_test_gui PROPERTY AUTOMOC ON)
+
+  target_link_libraries(lc_servo_motor_test_gui
+    lc_servo_motor_lib
+    rs485_device_base_servo_lib
+    rs485_client_servo_lib
+    Qt5::Core
+    Qt5::Widgets
+  )
+
+  ament_target_dependencies(lc_servo_motor_test_gui
+    rclcpp
+  )
+endif()
+
 # Install libraries
 install(TARGETS
   modbus_client_lib
@@ -170,6 +241,9 @@ install(TARGETS
   rs485_client_lib
   rs485_device_base_lib
   lc_stepper_motor_lib
+  rs485_client_servo_lib
+  rs485_device_base_servo_lib
+  lc_servo_motor_lib
   ARCHIVE DESTINATION lib
   LIBRARY DESTINATION lib
 )
@@ -183,6 +257,7 @@ install(TARGETS
 if(Qt5_FOUND)
   install(TARGETS
     lc_stepper_motor_test_gui
+    lc_servo_motor_test_gui
     DESTINATION lib/${PROJECT_NAME}
   )
 endif()
