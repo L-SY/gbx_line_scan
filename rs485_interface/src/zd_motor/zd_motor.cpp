@@ -88,15 +88,29 @@ bool ZdMotor::setMotorId(uint8_t new_id)
 
   // First, stop the motor to ensure it's in non-running state
   setControlCommand(ControlCommand::STOP);
+  std::this_thread::sleep_for(std::chrono::milliseconds(200));
+
+  // Enable write operation for F00-F10 group function codes (200EH = 1)
+  // This is required before writing to F08.00 (slave address register)
+  if (!writeRegister(REG_WRITE_ENABLE, 1)) {
+    last_error_ = "Failed to enable write operation (200EH): " + last_error_;
+    return false;
+  }
   std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
   // Write new ID to F08.00 register
   if (!writeRegister(REG_SLAVE_ADDRESS, new_id)) {
+    // Try to disable write operation even if write failed
+    writeRegister(REG_WRITE_ENABLE, 0);
     return false;
   }
 
-  // Wait for device to process
-  std::this_thread::sleep_for(std::chrono::milliseconds(200));
+  // Wait for device to process and save
+  std::this_thread::sleep_for(std::chrono::milliseconds(300));
+
+  // Disable write operation for security (200EH = 0)
+  writeRegister(REG_WRITE_ENABLE, 0);
+  std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
   // Update our slave address
   slave_address_ = new_id;

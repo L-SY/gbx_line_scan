@@ -158,6 +158,7 @@ private:
   static constexpr uint16_t REG_STATUS_WORD1 = 0x2100;    // Status word 1
   static constexpr uint16_t REG_STATUS_WORD2 = 0x2101;   // Status word 2
   static constexpr uint16_t REG_SLAVE_ADDRESS = 0x0800;  // F08.00 = 0x0800 (485 slave address)
+  static constexpr uint16_t REG_WRITE_ENABLE = 0x200E;   // 200EH: Write enable for F00-F10 group function codes
 };
 
 }  // namespace rs485_interface
