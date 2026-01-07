@@ -274,6 +274,47 @@ if(Qt5_FOUND)
   )
 endif()
 
+# ZD Motor library
+add_library(zd_motor_lib
+  src/zd_motor/zd_motor.cpp
+)
+
+target_include_directories(zd_motor_lib PUBLIC
+  ${CMAKE_CURRENT_SOURCE_DIR}/include
+)
+
+target_link_libraries(zd_motor_lib
+  rs485_device_base_servo_lib
+  rs485_client_servo_lib
+)
+
+ament_target_dependencies(zd_motor_lib
+  rclcpp
+)
+
+# ZD Motor Qt test GUI
+if(Qt5_FOUND)
+  add_executable(zd_motor_test_gui
+    src/zd_motor/zd_motor_test_gui_main.cpp
+    src/zd_motor/zd_motor_test_gui.cpp
+    include/rs485_interface/zd_motor/zd_motor_test_gui.hpp
+  )
+
+  set_property(TARGET zd_motor_test_gui PROPERTY AUTOMOC ON)
+
+  target_link_libraries(zd_motor_test_gui
+    zd_motor_lib
+    rs485_device_base_servo_lib
+    rs485_client_servo_lib
+    Qt5::Core
+    Qt5::Widgets
+  )
+
+  ament_target_dependencies(zd_motor_test_gui
+    rclcpp
+  )
+endif()
+
 # Install libraries
 install(TARGETS
   modbus_client_lib
@@ -286,6 +327,7 @@ install(TARGETS
   rs485_device_base_servo_lib
   lc_servo_motor_lib
   lc_servo_motor_multi_lib
+  zd_motor_lib
   ARCHIVE DESTINATION lib
   LIBRARY DESTINATION lib
 )
@@ -301,6 +343,7 @@ if(Qt5_FOUND)
     lc_stepper_motor_test_gui
     lc_servo_motor_test_gui
     lc_servo_motor_multi_test_gui
+    zd_motor_test_gui
     DESTINATION lib/${PROJECT_NAME}
   )
 endif()
