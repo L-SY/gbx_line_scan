@@ -61,3 +61,4 @@ protected:
 
 #endif  // RS485_DEVICE_BASE_SERVO_HPP
 
+
