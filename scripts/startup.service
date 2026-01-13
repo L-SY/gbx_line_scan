@@ -1,0 +1,13 @@
+[Unit]
+Description=Custom Startup Script
+After=network.target
+
+[Service]
+Type=oneshot
+ExecStart=/home/yang/gbx_line_scan/src/scripts/startup.sh
+RemainAfterExit=yes
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

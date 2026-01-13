@@ -8,7 +8,7 @@ def generate_launch_description():
     return LaunchDescription([
         DeclareLaunchArgument(
             'ip_address',
-            default_value='192.168.1.100',
+            default_value='192.168.3.101',
             description='IP address of the light controller'
         ),
         DeclareLaunchArgument(

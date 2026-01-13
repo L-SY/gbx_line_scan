@@ -1,0 +1,15 @@
+# Predictor Module Parameters
+# Configuration for dual LC servo motor control
+
+predictor_node:
+  ros__parameters:
+    # RS485 Communication Settings
+    device_path: "/dev/ttyACM0"  # Serial device path
+    baud_rate: 19200             # Baud rate (9600, 19200, 38400, 57600, 115200)
+
+    # Motor IDs
+    front_motor_id: 1            # Slave ID for front motor
+    rear_motor_id: 2             # Slave ID for rear motor
+
+    # Publishing Settings
+    publish_rate: 50.0           # Rate to publish motor velocities (Hz)
