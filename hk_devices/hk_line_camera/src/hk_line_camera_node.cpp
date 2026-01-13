@@ -2,6 +2,7 @@
 #include <sensor_msgs/image_encodings.hpp>
 #include <chrono>
 #include <cstring>
+#include <stdexcept>
 
 HkLineCameraNode::HkLineCameraNode()
   : Node("hk_line_camera_node"),
@@ -94,7 +95,7 @@ HkLineCameraNode::HkLineCameraNode()
     }
   } else {
     RCLCPP_ERROR(this->get_logger(), "Failed to initialize camera");
-    rclcpp::shutdown();
+    throw std::runtime_error("Failed to initialize camera");
   }
 }
 
@@ -656,7 +657,14 @@ void HkLineCameraNode::processImage(unsigned char *pData, MV_FRAME_OUT_INFO_EX* 
 int main(int argc, char * argv[])
 {
   rclcpp::init(argc, argv);
-  rclcpp::spin(std::make_shared<HkLineCameraNode>());
+  
+  try {
+    auto node = std::make_shared<HkLineCameraNode>();
+    rclcpp::spin(node);
+  } catch (const std::exception& e) {
+    RCLCPP_ERROR(rclcpp::get_logger("hk_line_camera"), "Node initialization failed: %s", e.what());
+  }
+  
   rclcpp::shutdown();
   return 0;
 }
