@@ -25,6 +25,9 @@ private:
   void cleanupCamera();
   bool configureCameraParameters();
   
+  // Find camera by IP address (returns device index, -1 if not found)
+  int findCameraByIp(MV_CC_DEVICE_INFO_LIST* pDeviceList, const std::string& ip);
+  
   // Image callback from SDK
   static void __stdcall imageCallback(unsigned char *pData, MV_FRAME_OUT_INFO_EX* pFrameInfo, void* pUser);
   void processImage(unsigned char *pData, MV_FRAME_OUT_INFO_EX* pFrameInfo);
@@ -82,6 +85,7 @@ private:
   
   // Camera selection
   int camera_index_;
+  std::string camera_ip_;  // IP address for GigE camera (if specified, overrides camera_index)
   std::string frame_id_;
 };
 

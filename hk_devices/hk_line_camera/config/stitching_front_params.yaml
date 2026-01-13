@@ -1,0 +1,21 @@
+# 前相机拼接配置文件 (Front Camera Stitching)
+image_stitching_node:
+  ros__parameters:
+    # Input/Output topics
+    input_topic: "front/image_raw"           # 订阅前相机的图像话题
+    output_topic: "front/image_stitched"     # 发布拼接后的图像
+    frame_id: "camera_front_frame"           # Frame ID for published images
+    
+    # Stitching limits
+    # Note: If camera_params.yaml sets image_height, each frame will be cropped to that height.
+    # max_height here controls the total height of the stitched image (0 = unlimited)
+    max_height: 0                      # Maximum height in pixels (0 = unlimited)
+    max_stitch_count: 0                # Maximum number of images to stitch (0 = unlimited)
+    
+    # Reset behavior
+    reset_on_max_height: true          # Reset and start new when max_height is reached
+    reset_on_max_count: true           # Reset and start new when max_stitch_count is reached
+    
+    # Publishing options
+    publish_periodically: false        # If true, publish at fixed rate instead of on each image
+    publish_rate: 1.0                  # Publishing rate in Hz (if publish_periodically is true)

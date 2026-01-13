@@ -41,6 +41,7 @@ HkLineCameraNode::HkLineCameraNode()
   
   // Camera selection
   this->declare_parameter<int>("camera_index", 0);
+  this->declare_parameter<std::string>("camera_ip", "");  // IP address for GigE camera (if specified, overrides camera_index)
   this->declare_parameter<std::string>("frame_id", "camera_frame");
   this->declare_parameter<std::string>("image_topic", "image_raw");
   
@@ -74,6 +75,7 @@ HkLineCameraNode::HkLineCameraNode()
   image_height_ = this->get_parameter("image_height").as_int();
   
   camera_index_ = this->get_parameter("camera_index").as_int();
+  camera_ip_ = this->get_parameter("camera_ip").as_string();
   frame_id_ = this->get_parameter("frame_id").as_string();
   std::string image_topic = this->get_parameter("image_topic").as_string();
   
@@ -131,15 +133,46 @@ bool HkLineCameraNode::initializeCamera()
   
   RCLCPP_INFO(this->get_logger(), "Found %d device(s)", stDeviceList.nDeviceNum);
   
-  if (camera_index_ >= static_cast<int>(stDeviceList.nDeviceNum)) {
-    RCLCPP_ERROR(this->get_logger(), "Camera index %d is out of range (max: %d)", 
-                 camera_index_, stDeviceList.nDeviceNum - 1);
-    MV_CC_Finalize();
-    return false;
+  // Print all found devices
+  for (unsigned int i = 0; i < stDeviceList.nDeviceNum; i++) {
+    MV_CC_DEVICE_INFO* pDeviceInfo = stDeviceList.pDeviceInfo[i];
+    if (pDeviceInfo && pDeviceInfo->nTLayerType == MV_GIGE_DEVICE) {
+      int nIp1 = ((pDeviceInfo->SpecialInfo.stGigEInfo.nCurrentIp & 0xff000000) >> 24);
+      int nIp2 = ((pDeviceInfo->SpecialInfo.stGigEInfo.nCurrentIp & 0x00ff0000) >> 16);
+      int nIp3 = ((pDeviceInfo->SpecialInfo.stGigEInfo.nCurrentIp & 0x0000ff00) >> 8);
+      int nIp4 = (pDeviceInfo->SpecialInfo.stGigEInfo.nCurrentIp & 0x000000ff);
+      RCLCPP_INFO(this->get_logger(), "  [%d] GigE Camera: %d.%d.%d.%d (%s)", 
+                  i, nIp1, nIp2, nIp3, nIp4, 
+                  pDeviceInfo->SpecialInfo.stGigEInfo.chUserDefinedName);
+    }
+  }
+  
+  // Determine which camera to use
+  int selected_index = camera_index_;
+  if (!camera_ip_.empty()) {
+    // Use IP address to find camera
+    int ip_index = findCameraByIp(&stDeviceList, camera_ip_);
+    if (ip_index >= 0) {
+      selected_index = ip_index;
+      RCLCPP_INFO(this->get_logger(), "Found camera by IP %s at index %d", camera_ip_.c_str(), selected_index);
+    } else {
+      RCLCPP_ERROR(this->get_logger(), "Camera with IP %s not found!", camera_ip_.c_str());
+      MV_CC_Finalize();
+      return false;
+    }
+  } else {
+    // Use camera index
+    if (camera_index_ >= static_cast<int>(stDeviceList.nDeviceNum)) {
+      RCLCPP_ERROR(this->get_logger(), "Camera index %d is out of range (max: %d)", 
+                   camera_index_, stDeviceList.nDeviceNum - 1);
+      MV_CC_Finalize();
+      return false;
+    }
+    RCLCPP_INFO(this->get_logger(), "Using camera at index %d", selected_index);
   }
   
   // Create handle
-  nRet = MV_CC_CreateHandle(&camera_handle_, stDeviceList.pDeviceInfo[camera_index_]);
+  nRet = MV_CC_CreateHandle(&camera_handle_, stDeviceList.pDeviceInfo[selected_index]);
   if (MV_OK != nRet) {
     RCLCPP_ERROR(this->get_logger(), "Create Handle failed! nRet [0x%x]", nRet);
     MV_CC_Finalize();
@@ -157,7 +190,7 @@ bool HkLineCameraNode::initializeCamera()
   }
   
   // Set optimal packet size for GigE cameras
-  if (stDeviceList.pDeviceInfo[camera_index_]->nTLayerType == MV_GIGE_DEVICE) {
+  if (stDeviceList.pDeviceInfo[selected_index]->nTLayerType == MV_GIGE_DEVICE) {
     int nPacketSize = MV_CC_GetOptimalPacketSize(camera_handle_);
     if (nPacketSize > 0) {
       nRet = MV_CC_SetIntValueEx(camera_handle_, "GevSCPSPacketSize", nPacketSize);
@@ -477,6 +510,29 @@ bool HkLineCameraNode::setImageHeight()
                 "Height parameter not available (nRet=0x%x). Camera may not support setting image height.", nRet);
     return false;
   }
+}
+
+int HkLineCameraNode::findCameraByIp(MV_CC_DEVICE_INFO_LIST* pDeviceList, const std::string& ip)
+{
+  // Parse target IP address
+  int target_ip[4];
+  if (sscanf(ip.c_str(), "%d.%d.%d.%d", &target_ip[0], &target_ip[1], &target_ip[2], &target_ip[3]) != 4) {
+    RCLCPP_ERROR(this->get_logger(), "Invalid IP address format: %s", ip.c_str());
+    return -1;
+  }
+  
+  unsigned int target_ip_value = (target_ip[0] << 24) | (target_ip[1] << 16) | (target_ip[2] << 8) | target_ip[3];
+  
+  for (unsigned int i = 0; i < pDeviceList->nDeviceNum; i++) {
+    MV_CC_DEVICE_INFO* pDeviceInfo = pDeviceList->pDeviceInfo[i];
+    if (pDeviceInfo && pDeviceInfo->nTLayerType == MV_GIGE_DEVICE) {
+      if (pDeviceInfo->SpecialInfo.stGigEInfo.nCurrentIp == target_ip_value) {
+        return static_cast<int>(i);
+      }
+    }
+  }
+  
+  return -1;  // Not found
 }
 
 bool HkLineCameraNode::setEnumValue(const std::string& key, int value)

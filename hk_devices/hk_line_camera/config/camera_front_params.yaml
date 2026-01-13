@@ -1,12 +1,13 @@
+# 前相机配置文件 (Camera 1 - Front)
+# IP: 192.168.1.101
+
 hk_line_camera_node:
   ros__parameters:
-    # Camera selection
-    # 可以通过 camera_ip 指定相机 IP（推荐用于多相机场景）
-    # 如果 camera_ip 为空，则使用 camera_index
-    camera_ip: ""                 # GigE 相机 IP 地址（例如 "192.168.1.101"）
-    camera_index: 0               # 相机索引（当 camera_ip 为空时使用）
-    frame_id: "camera_frame"
-    image_topic: "image_raw"
+    # Camera selection - 通过 IP 地址选择相机
+    camera_ip: "192.168.1.101"    # 前相机 IP
+    camera_index: 0               # 备用：如果 camera_ip 为空则使用此索引
+    frame_id: "camera_front_frame"
+    image_topic: "front/image_raw"
     
     # ============================================
     # Trigger Configuration (触发配置)
@@ -19,7 +20,7 @@ hk_line_camera_node:
     
     # Frame Trigger parameters (FrameBurstStart - 帧触发)
     # Controls when to start acquiring a frame - triggered by Line1
-    frame_trigger_enabled: true  # Enable/disable frame trigger
+    frame_trigger_enabled: true   # Enable/disable frame trigger
     frame_trigger_mode: 1         # 1 = On, 0 = Off
     frame_trigger_source: 1       # 1 = Line1 (帧触发线在line1上)
     frame_trigger_activation: 3   # 0 = RisingEdge, 1 = FallingEdge, 2 = LevelHigh, 3 = LevelLow
