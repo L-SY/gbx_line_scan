@@ -16,7 +16,7 @@
 
 from launch import LaunchDescription
 from launch_ros.actions import Node
-from launch.actions import DeclareLaunchArgument
+from launch.actions import DeclareLaunchArgument, TimerAction
 from launch.substitutions import LaunchConfiguration
 import os
 from ament_index_python.packages import get_package_share_directory
@@ -39,35 +39,35 @@ def generate_launch_description():
         description='Path to the rear camera parameters YAML file'
     )
     
-    # Front camera node
+    # Front camera node (立即启动)
     front_camera_node = Node(
         package='hk_line_camera',
         executable='hk_line_camera_node',
         name='hk_line_camera_front',
         namespace='camera_front',
         parameters=[LaunchConfiguration('front_config')],
-        output='screen',
-        remappings=[
-            # 可以在这里添加话题重映射
-        ]
+        output='screen'
     )
     
-    # Rear camera node
+    # Rear camera node (延迟启动)
     rear_camera_node = Node(
         package='hk_line_camera',
         executable='hk_line_camera_node',
         name='hk_line_camera_rear',
         namespace='camera_rear',
         parameters=[LaunchConfiguration('rear_config')],
-        output='screen',
-        remappings=[
-            # 可以在这里添加话题重映射
-        ]
+        output='screen'
+    )
+    
+    # 使用 TimerAction 延迟启动后相机节点，避免两个相机同时初始化 SDK 导致冲突
+    delayed_rear_camera = TimerAction(
+        period=3.0,  # 延迟 3 秒
+        actions=[rear_camera_node]
     )
     
     return LaunchDescription([
         front_config_arg,
         rear_config_arg,
         front_camera_node,
-        rear_camera_node
+        delayed_rear_camera
     ])
