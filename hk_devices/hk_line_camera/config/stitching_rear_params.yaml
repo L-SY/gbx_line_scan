@@ -1,5 +1,5 @@
 # 后相机拼接配置文件 (Rear Camera Stitching)
-image_stitching_node:
+/**:
   ros__parameters:
     # Input/Output topics
     input_topic: "rear/image_raw"            # 订阅后相机的图像话题

@@ -1,7 +1,7 @@
 # 前相机配置文件 (Camera 1 - Front)
 # IP: 192.168.1.101
 
-hk_line_camera_node:
+/**:
   ros__parameters:
     # Camera selection - 通过 IP 地址选择相机
     camera_ip: "192.168.1.101"    # 前相机 IP

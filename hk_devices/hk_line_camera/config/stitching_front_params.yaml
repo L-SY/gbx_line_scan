@@ -1,5 +1,5 @@
 # 前相机拼接配置文件 (Front Camera Stitching)
-image_stitching_node:
+/**:
   ros__parameters:
     # Input/Output topics
     input_topic: "front/image_raw"           # 订阅前相机的图像话题

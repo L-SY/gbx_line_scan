@@ -1,7 +1,7 @@
 # 后相机配置文件 (Camera 2 - Rear)
 # IP: 192.168.2.101
 
-hk_line_camera_node:
+/**:
   ros__parameters:
     # Camera selection - 通过 IP 地址选择相机
     camera_ip: "192.168.2.101"    # 后相机 IP
