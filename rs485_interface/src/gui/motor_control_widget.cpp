@@ -15,3 +15,4 @@ void MotorControlWidget::logMessage(const std::string & message)
   emit statusMessage(QString::fromStdString(message));
 }
 
+

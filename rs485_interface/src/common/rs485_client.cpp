@@ -681,3 +681,4 @@ bool RS485Client::configureSerialPort()
 
 }  // namespace rs485_interface
 
+

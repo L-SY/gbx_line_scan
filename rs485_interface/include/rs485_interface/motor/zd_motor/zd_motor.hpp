@@ -1,8 +1,8 @@
 #ifndef ZD_MOTOR_HPP
 #define ZD_MOTOR_HPP
 
-#include "rs485_interface/motor/lc_servo_motor/rs485_device_base.hpp"
-#include "rs485_interface/motor/lc_servo_motor/rs485_client.hpp"
+#include "rs485_interface/common/rs485_device_base.hpp"
+#include "rs485_interface/common/rs485_client.hpp"
 
 #include <cstdint>
 #include <string>
@@ -66,6 +66,12 @@ public:
    * @return Device type string
    */
   std::string getDeviceType() const override;
+
+  /**
+   * @brief Get motor type enumeration
+   * @return Motor type enum value
+   */
+  MotorType getMotorType() const override { return MotorType::ZD_MOTOR; }
 
   /**
    * @brief Scan for motor ID by reading F08.00 register

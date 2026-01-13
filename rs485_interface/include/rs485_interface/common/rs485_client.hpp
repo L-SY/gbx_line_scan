@@ -242,6 +242,9 @@ private:
   std::string last_error_;
 };
 
+// Type alias for backward compatibility with old servo motor code
+using RS485ClientServo = RS485Client;
+
 }  // namespace rs485_interface
 
 #endif  // RS485_COMMON_CLIENT_HPP

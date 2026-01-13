@@ -125,3 +125,4 @@ bool LcServoMotor::readRegister(uint16_t register_address, uint16_t & value)
 
 }  // namespace rs485_interface
 
+

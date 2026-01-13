@@ -1,5 +1,5 @@
 #include "rs485_interface/motor/lc_servo_motor/lc_servo_motor_test_gui.hpp"
-#include "rs485_interface/motor/lc_servo_motor/rs485_client.hpp"
+#include "rs485_interface/common/rs485_client.hpp"
 #include "rs485_interface/motor/lc_servo_motor/lc_servo_motor.hpp"
 
 #include <QMessageBox>

@@ -15,11 +15,8 @@
 #include <memory>
 #include <string>
 
-namespace rs485_interface
-{
-class RS485ClientServo;
-class LcServoMotor;
-}
+#include "rs485_interface/common/rs485_client.hpp"
+#include "rs485_interface/motor/lc_servo_motor/lc_servo_motor.hpp"
 
 class LcServoMotorTestGUI : public QWidget
 {

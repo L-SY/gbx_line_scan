@@ -110,6 +110,9 @@ protected:
   std::string last_error_;
 };
 
+// Type alias for backward compatibility with old servo motor code
+using RS485DeviceBaseServo = RS485DeviceBase;
+
 }  // namespace rs485_interface
 
 #endif  // RS485_COMMON_DEVICE_BASE_HPP

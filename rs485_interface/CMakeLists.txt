@@ -223,9 +223,9 @@ ament_target_dependencies(distance_sensor_lib
   rclcpp
 )
 
-# RS485 client library (legacy - for LC stepper motor)
+# RS485 client library (unified)
 add_library(rs485_client_lib
-  src/motor/lc_stepper_motor/rs485_client.cpp
+  src/common/rs485_client.cpp
 )
 
 target_include_directories(rs485_client_lib PUBLIC
@@ -236,9 +236,9 @@ ament_target_dependencies(rs485_client_lib
   rclcpp
 )
 
-# RS485 device base library (legacy - for LC stepper motor)
+# RS485 device base library (unified)
 add_library(rs485_device_base_lib
-  src/motor/lc_stepper_motor/rs485_device_base.cpp
+  src/common/rs485_device_base.cpp
 )
 
 target_include_directories(rs485_device_base_lib PUBLIC
@@ -311,9 +311,9 @@ if(Qt5_FOUND)
   )
 endif()
 
-# RS485 client library for servo (with EVEN-1 parity support) (legacy)
+# RS485 client library for servo (uses unified rs485_client)
 add_library(rs485_client_servo_lib
-  src/motor/lc_servo_motor/rs485_client.cpp
+  src/common/rs485_client.cpp
 )
 
 target_include_directories(rs485_client_servo_lib PUBLIC
@@ -324,9 +324,9 @@ ament_target_dependencies(rs485_client_servo_lib
   rclcpp
 )
 
-# RS485 device base library for servo (legacy)
+# RS485 device base library for servo (uses unified rs485_device_base)
 add_library(rs485_device_base_servo_lib
-  src/motor/lc_servo_motor/rs485_device_base.cpp
+  src/common/rs485_device_base.cpp
 )
 
 target_include_directories(rs485_device_base_servo_lib PUBLIC

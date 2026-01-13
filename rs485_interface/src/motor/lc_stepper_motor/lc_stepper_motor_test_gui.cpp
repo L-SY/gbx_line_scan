@@ -1,5 +1,5 @@
 #include "rs485_interface/motor/lc_stepper_motor/lc_stepper_motor_test_gui.hpp"
-#include "rs485_interface/motor/lc_stepper_motor/rs485_client.hpp"
+#include "rs485_interface/common/rs485_client.hpp"
 #include "rs485_interface/motor/lc_stepper_motor/lc_stepper_motor.hpp"
 
 #include <QMessageBox>
@@ -167,8 +167,9 @@ void LcStepperMotorTestGUI::onConnectClicked()
 
   uint8_t address = static_cast<uint8_t>(address_spin_->value());
 
-  // Create RS485 client
-  rs485_client_ = std::make_shared<rs485_interface::RS485Client>(port, baud_rate, 1000);
+  // Create RS485 client (stepper uses NONE parity)
+  rs485_client_ = std::make_shared<rs485_interface::RS485Client>(
+    port, baud_rate, rs485_interface::RS485Client::Parity::NONE, 1000);
   if (!rs485_client_->open()) {
     std::string error = "Failed to open port: " + rs485_client_->getLastError();
     QMessageBox::critical(this, "Connection Error", QString::fromStdString(error));

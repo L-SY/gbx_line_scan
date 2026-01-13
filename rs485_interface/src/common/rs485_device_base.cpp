@@ -50,3 +50,4 @@ void RS485DeviceBase::setLastError(const std::string & error)
 
 }  // namespace rs485_interface
 
+

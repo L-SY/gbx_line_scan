@@ -109,3 +109,4 @@ bool ZdMotor::readStatusWord2(uint16_t & status)
 
 }  // namespace rs485_interface
 
+

@@ -1,8 +1,8 @@
 #ifndef LC_STEPPER_MOTOR_HPP
 #define LC_STEPPER_MOTOR_HPP
 
-#include "rs485_interface/motor/lc_stepper_motor/rs485_device_base.hpp"
-#include "rs485_interface/motor/lc_stepper_motor/rs485_client.hpp"
+#include "rs485_interface/common/rs485_device_base.hpp"
+#include "rs485_interface/common/rs485_client.hpp"
 
 #include <cstdint>
 #include <string>
@@ -60,6 +60,12 @@ public:
    * @return Device type string
    */
   std::string getDeviceType() const override;
+
+  /**
+   * @brief Get motor type enumeration
+   * @return Motor type enum value
+   */
+  MotorType getMotorType() const override { return MotorType::LC_STEPPER_MOTOR; }
 
   /**
    * @brief Set motor state (start/stop mode)

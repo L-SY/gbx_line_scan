@@ -1,5 +1,5 @@
 #include "rs485_interface/motor/zd_motor/zd_motor.hpp"
-#include "rs485_interface/motor/lc_servo_motor/rs485_client.hpp"
+#include "rs485_interface/common/rs485_client.hpp"
 #include <cstring>
 #include <thread>
 #include <chrono>
