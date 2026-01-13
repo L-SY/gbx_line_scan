@@ -7,6 +7,7 @@ endif()
 
 # Find dependencies
 find_package(ament_cmake REQUIRED)
+find_package(ament_cmake_python REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(std_msgs REQUIRED)
 find_package(rs485_interface REQUIRED)
@@ -159,6 +160,12 @@ install(DIRECTORY launch
 # Install config files
 install(DIRECTORY config
   DESTINATION share/${PROJECT_NAME}
+)
+
+# Install Python scripts
+install(PROGRAMS
+  scripts/motor_control_gui.py
+  DESTINATION lib/${PROJECT_NAME}
 )
 
 # Install resource marker

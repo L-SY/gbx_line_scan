@@ -8,7 +8,7 @@ echo "[$(date)] 启动脚本开始执行" >> "$LOG_FILE"
 
 # 在这里添加您需要在开机时执行的命令
 # 示例：修改文件权限
-# chmod 777 /path/to/your/file
+sudo chmod 777 /dev/ttyACM0
 
 # 示例：启动某个服务
 # systemctl start your-service
