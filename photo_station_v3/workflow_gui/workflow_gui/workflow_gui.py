@@ -83,7 +83,7 @@ from PyQt5.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QLabel, QSlider, QPushButton, QGroupBox, QFrame, QTabWidget,
     QDoubleSpinBox, QGridLayout, QSizePolicy, QScrollArea, QSplitter,
-    QComboBox, QSpinBox, QMessageBox, QFileDialog
+    QComboBox, QSpinBox, QMessageBox, QFileDialog, QLineEdit
 )
 from PyQt5.QtCore import Qt, QTimer, pyqtSignal, QObject, QSize, QCoreApplication
 from PyQt5.QtGui import QFont, QPixmap, QImage, QPalette
@@ -834,6 +834,7 @@ class ImageDisplayPanel(QGroupBox):
         super().__init__(title, parent)
         self._current_image = None
         self._frame_count = 0
+        self._save_count = 0
         self._default_topic = default_topic
         self._setup_ui()
     
@@ -849,7 +850,7 @@ class ImageDisplayPanel(QGroupBox):
         
         self.topic_combo = QComboBox()
         self.topic_combo.setEditable(True)
-        self.topic_combo.setMinimumWidth(250)
+        self.topic_combo.setMinimumWidth(500)
         self.topic_combo.lineEdit().setPlaceholderText("/image_topic")
         if self._default_topic:
             self.topic_combo.setCurrentText(self._default_topic)
@@ -890,19 +891,6 @@ class ImageDisplayPanel(QGroupBox):
         """)
         control_layout.addWidget(self.reset_btn)
         
-        self.save_btn = QPushButton("Save")
-        self.save_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #E0E0E0;
-                border: 1px solid #808080;
-                border-radius: 3px;
-                padding: 5px 10px;
-            }
-            QPushButton:hover { background-color: #D0D0D0; }
-            QPushButton:pressed { background-color: #C0C0C0; }
-        """)
-        control_layout.addWidget(self.save_btn)
-        
         control_layout.addStretch()
         
         self.info_label = QLabel("Waiting for image...")
@@ -910,6 +898,42 @@ class ImageDisplayPanel(QGroupBox):
         control_layout.addWidget(self.info_label)
         
         layout.addLayout(control_layout)
+        
+        # Save path bar (similar to Topic bar)
+        save_layout = QHBoxLayout()
+        
+        save_path_label = QLabel("Save Path:")
+        save_layout.addWidget(save_path_label)
+        
+        from datetime import datetime
+        default_save_path = f"image_{datetime.now().strftime('%Y%m%d_%H%M%S')}.png"
+        self.save_path_edit = QLineEdit()
+        self.save_path_edit.setMinimumWidth(500)
+        self.save_path_edit.setText(default_save_path)
+        self.save_path_edit.setPlaceholderText("Enter save path...")
+        save_layout.addWidget(self.save_path_edit)
+        
+        self.save_btn = QPushButton("Save")
+        self.save_btn.setMaximumWidth(80)
+        self.save_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #E0E0E0;
+                border: 1px solid #808080;
+                border-radius: 3px;
+                padding: 5px;
+            }
+            QPushButton:hover { background-color: #D0D0D0; }
+            QPushButton:pressed { background-color: #C0C0C0; }
+        """)
+        self.save_btn.clicked.connect(self._on_save_clicked)
+        save_layout.addWidget(self.save_btn)
+        
+        self.save_count_label = QLabel("Saved: 0")
+        self.save_count_label.setStyleSheet("color: #606060; font-weight: bold;")
+        save_layout.addWidget(self.save_count_label)
+        
+        save_layout.addStretch()
+        layout.addLayout(save_layout)
         
         # Scroll area for image
         self.scroll_area = QScrollArea()
@@ -932,9 +956,6 @@ class ImageDisplayPanel(QGroupBox):
         layout.addWidget(self.scroll_area, 1)
         
         self.setLayout(layout)
-        
-        # Connect save button
-        self.save_btn.clicked.connect(self._on_save_clicked)
     
     def _on_topic_changed(self, topic: str):
         """Handle topic change from combo box"""
@@ -1005,23 +1026,29 @@ class ImageDisplayPanel(QGroupBox):
     def _on_save_clicked(self):
         """Save current image to file"""
         if self._current_image is None:
-            QMessageBox.warning(self, "Warning", "No image available to save.")
             return
         
-        from datetime import datetime
-        default_name = f"image_{datetime.now().strftime('%Y%m%d_%H%M%S')}.png"
+        filename = self.save_path_edit.text().strip()
+        if not filename:
+            return
         
-        filename, _ = QFileDialog.getSaveFileName(
-            self, "Save Image", default_name,
-            "PNG Images (*.png);;JPEG Images (*.jpg);;All Files (*.*)"
-        )
-        
-        if filename:
-            try:
-                cv2.imwrite(filename, self._current_image)
-                QMessageBox.information(self, "Success", f"Image saved to:\n{filename}")
-            except Exception as e:
-                QMessageBox.critical(self, "Error", f"Failed to save: {e}")
+        try:
+            # Ensure directory exists
+            import os
+            save_dir = os.path.dirname(filename)
+            if save_dir and not os.path.exists(save_dir):
+                os.makedirs(save_dir, exist_ok=True)
+            
+            cv2.imwrite(filename, self._current_image)
+            self._save_count += 1
+            self.save_count_label.setText(f"Saved: {self._save_count}")
+            
+            # Update default path for next save
+            from datetime import datetime
+            default_save_path = f"image_{datetime.now().strftime('%Y%m%d_%H%M%S')}.png"
+            self.save_path_edit.setText(default_save_path)
+        except Exception as e:
+            self.save_count_label.setText(f"Save failed: {str(e)[:20]}")
 
 
 # ============================================================================
