@@ -28,7 +28,7 @@ sudo apt-get install qtbase5-dev libqt5core5a libqt5gui5 libqt5widgets5
 
 ```bash
 cd /path/to/your/workspace
-colcon build --packages-select image_viewer
+colcon build --packages-select v2_workflow_gui
 source install/setup.bash
 ```
 
@@ -39,7 +39,7 @@ source install/setup.bash
 **Direct run (recommended for GUI applications):**
 
 ```bash
-ros2 run image_viewer image_viewer
+ros2 run v2_workflow_gui v2_workflow_gui
 ```
 
 The viewer will start and subscribe to `/image_stitched` by default.
@@ -47,7 +47,7 @@ The viewer will start and subscribe to `/image_stitched` by default.
 **Or via launch file:**
 
 ```bash
-ros2 launch image_viewer image_viewer.launch.py
+ros2 launch v2_workflow_gui v2_workflow_gui.launch.py
 ```
 
 **Note:** GUI applications like this one work better when run directly with `ros2 run` as they require an interactive display environment.
@@ -97,7 +97,7 @@ ros2 launch image_viewer image_viewer.launch.py
 ### Viewer won't start
 
 1. Ensure Qt5 is installed: `apt list --installed | grep qt5`
-2. Check that workspace is built: `colcon build --packages-select image_viewer`
+2. Check that workspace is built: `colcon build --packages-select v2_workflow_gui`
 3. Source the environment: `source install/setup.bash`
 
 ### No image displayed

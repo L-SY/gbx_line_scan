@@ -1,4 +1,4 @@
-#include "image_viewer/image_viewer_widget.hpp"
+#include "v2_workflow_gui/v2_workflow_gui_widget.hpp"
 #include <QApplication>
 #include <rclcpp/rclcpp.hpp>
 #include <iostream>

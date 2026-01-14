@@ -1,4 +1,4 @@
-#include "image_viewer/image_viewer_widget.hpp"
+#include "v2_workflow_gui/v2_workflow_gui_widget.hpp"
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QScrollArea>
@@ -36,7 +36,7 @@ ImageViewerWidget::ImageViewerWidget(QWidget *parent)
   // Note: rclcpp::init should be called in main(), not here
   // This assumes rclcpp is already initialized
   
-  node_ = std::make_shared<rclcpp::Node>("image_viewer_widget");
+  node_ = std::make_shared<rclcpp::Node>("v2_workflow_gui_widget");
   
   // Create motor control publisher
   motor_pub_ = node_->create_publisher<control_msgs::msg::MultiDOFCommand>(

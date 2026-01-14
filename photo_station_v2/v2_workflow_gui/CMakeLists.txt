@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.8)
-project(image_viewer)
+project(v2_workflow_gui)
 
 if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
   add_compile_options(-Wall -Wextra -Wpedantic)
@@ -30,22 +30,22 @@ include_directories(
 # Add image viewer executable
 # Note: CMAKE_AUTOMOC must be set before add_executable
 # and the header file must be listed for MOC to process it
-add_executable(image_viewer 
-  src/image_viewer_main.cpp
-  src/image_viewer_widget.cpp
-  include/image_viewer/image_viewer_widget.hpp
+add_executable(v2_workflow_gui 
+  src/v2_workflow_gui_main.cpp
+  src/v2_workflow_gui_widget.cpp
+  include/v2_workflow_gui/v2_workflow_gui_widget.hpp
 )
 
 # Ensure MOC runs for the header file
-set_property(TARGET image_viewer PROPERTY AUTOMOC ON)
+set_property(TARGET v2_workflow_gui PROPERTY AUTOMOC ON)
 
-target_link_libraries(image_viewer
+target_link_libraries(v2_workflow_gui
   ${OpenCV_LIBS}
   Qt5::Core
   Qt5::Widgets
 )
 
-ament_target_dependencies(image_viewer
+ament_target_dependencies(v2_workflow_gui
   rclcpp
   sensor_msgs
   std_srvs
@@ -55,7 +55,7 @@ ament_target_dependencies(image_viewer
 
 # Install
 install(TARGETS
-  image_viewer
+  v2_workflow_gui
   DESTINATION lib/${PROJECT_NAME}
 )
 
