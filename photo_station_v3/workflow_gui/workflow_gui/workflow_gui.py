@@ -209,7 +209,13 @@ def generate_crop_diagram(
             font = ImageFont.load_default()
     
     # 线条颜色和宽度
-    line_color = (255, 0, 0)  # 红色
+    # 根据图像模式选择颜色：灰度图用整数，RGB图用元组
+    if img.mode == 'L' or img.mode == '1':
+        # 灰度图或二值图
+        line_color = 255  # 白色
+    else:
+        # RGB/RGBA 图
+        line_color = (255, 0, 0)  # 红色
     line_width = max(crop_size_px // 100, 3)
     
     # 绘制垂直线
@@ -247,8 +253,14 @@ def generate_crop_diagram(
             text_x = center_x - text_width // 2
             text_y = center_y - text_height // 2
             
-            # 绘制文字（绿色）
-            draw.text((text_x, text_y), text, fill=(0, 255, 0), font=font)
+            # 绘制文字（绿色），根据图像模式选择颜色
+            if img.mode == 'L' or img.mode == '1':
+                # 灰度图或二值图
+                text_color = 255  # 白色
+            else:
+                # RGB/RGBA 图
+                text_color = (0, 255, 0)  # 绿色
+            draw.text((text_x, text_y), text, fill=text_color, font=font)
             
             piece_number += 1
     
