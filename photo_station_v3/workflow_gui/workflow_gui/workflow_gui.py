@@ -649,6 +649,8 @@ class MotorControlPanel(QGroupBox):
     def _on_stop_clicked(self):
         self.speed_slider.setValue(0)
         self.speed_spinbox.setValue(0)
+        # Immediately publish speed=0 using existing Set logic
+        self.set_speed_btn.click()
     
     def update_velocity(self, velocity: float):
         self.velocity_display.setText(f"{velocity:.2f} RPM")
@@ -1094,6 +1096,37 @@ class WorkflowGUI(QMainWindow):
             QDoubleSpinBox:focus, QSpinBox:focus {
                 border: 2px solid #606060;
             }
+            QSpinBox::up-button, QDoubleSpinBox::up-button {
+                subcontrol-origin: border;
+                subcontrol-position: top right;
+                width: 18px;
+                background-color: #d0d0d0;
+                border-left: 1px solid #a0a0a0;
+                border-bottom: 1px solid #a0a0a0;
+                border-top-right-radius: 4px;
+            }
+            QSpinBox::down-button, QDoubleSpinBox::down-button {
+                subcontrol-origin: border;
+                subcontrol-position: bottom right;
+                width: 18px;
+                background-color: #d0d0d0;
+                border-left: 1px solid #a0a0a0;
+                border-bottom-right-radius: 4px;
+            }
+            QSpinBox::up-button:hover, QDoubleSpinBox::up-button:hover,
+            QSpinBox::down-button:hover, QDoubleSpinBox::down-button:hover {
+                background-color: #c0c0c0;
+            }
+            QSpinBox::up-arrow, QDoubleSpinBox::up-arrow {
+                width: 10px;
+                height: 10px;
+                image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 10 10'><path d='M2 6.5 L5 3.5 L8 6.5 Z' fill='%23606060'/></svg>");
+            }
+            QSpinBox::down-arrow, QDoubleSpinBox::down-arrow {
+                width: 10px;
+                height: 10px;
+                image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 10 10'><path d='M2 3.5 L5 6.5 L8 3.5 Z' fill='%23606060'/></svg>");
+            }
             QComboBox {
                 background-color: #ffffff;
                 color: #303030;
@@ -1105,7 +1138,21 @@ class WorkflowGUI(QMainWindow):
                 border: 2px solid #606060;
             }
             QComboBox::drop-down {
-                border: none;
+                subcontrol-origin: padding;
+                subcontrol-position: top right;
+                width: 22px;
+                border-left: 1px solid #a0a0a0;
+                background-color: #d0d0d0;
+                border-top-right-radius: 4px;
+                border-bottom-right-radius: 4px;
+            }
+            QComboBox::drop-down:hover {
+                background-color: #c0c0c0;
+            }
+            QComboBox::down-arrow {
+                width: 10px;
+                height: 10px;
+                image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 10 10'><path d='M2 3.5 L5 6.5 L8 3.5 Z' fill='%23606060'/></svg>");
             }
             QComboBox QAbstractItemView {
                 background-color: #ffffff;

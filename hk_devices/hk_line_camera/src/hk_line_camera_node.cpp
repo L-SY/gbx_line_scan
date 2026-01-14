@@ -785,7 +785,7 @@ void HkLineCameraNode::processImage(unsigned char *pData, MV_FRAME_OUT_INFO_EX* 
       
       // Draw red crop lines
       cv::Scalar red(0, 0, 255);  // BGR format
-      int line_thickness = 2;
+      int line_thickness = 10;
       
       // Left line
       cv::line(debug_image, cv::Point(crop_x, 0), cv::Point(crop_x, img_height), red, line_thickness);
