@@ -38,6 +38,8 @@ private:
   // ROS2 subscribers and publishers
   rclcpp::Subscription<sensor_msgs::msg::Image>::SharedPtr image_sub_;
   rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr stitched_image_pub_;
+  rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr cropped_image_pub_;
+  rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr debug_image_pub_;
   rclcpp::TimerBase::SharedPtr publish_timer_;
   rclcpp::Service<std_srvs::srv::Trigger>::SharedPtr reset_service_;
   
@@ -57,6 +59,13 @@ private:
   double publish_rate_;               // Publishing rate in Hz (if periodic)
   bool reset_on_max_height_;          // Reset when max height is reached
   bool reset_on_max_count_;           // Reset when max count is reached
+  
+  // Cropping parameters (percentage 0.0-1.0)
+  double crop_top_;                   // Percentage to crop from top
+  double crop_bottom_;                // Percentage to crop from bottom
+  double crop_left_;                  // Percentage to crop from left
+  double crop_right_;                 // Percentage to crop from right
+  bool publish_debug_image_;          // Whether to publish debug image with crop lines
   
   // Statistics
   int total_frames_processed_;
