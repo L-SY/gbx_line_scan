@@ -21,8 +21,6 @@ ImageStitchingNode::ImageStitchingNode()
   this->declare_parameter<bool>("reset_on_max_count", true);
   
   // Cropping parameters (percentage 0.0-1.0)
-  this->declare_parameter<double>("crop_top", 0.0);
-  this->declare_parameter<double>("crop_bottom", 0.0);
   this->declare_parameter<double>("crop_left", 0.0);
   this->declare_parameter<double>("crop_right", 0.0);
   this->declare_parameter<bool>("publish_debug_image", false);
@@ -39,8 +37,6 @@ ImageStitchingNode::ImageStitchingNode()
   reset_on_max_count_ = this->get_parameter("reset_on_max_count").as_bool();
   
   // Get cropping parameters
-  crop_top_ = this->get_parameter("crop_top").as_double();
-  crop_bottom_ = this->get_parameter("crop_bottom").as_double();
   crop_left_ = this->get_parameter("crop_left").as_double();
   crop_right_ = this->get_parameter("crop_right").as_double();
   publish_debug_image_ = this->get_parameter("publish_debug_image").as_bool();
@@ -94,8 +90,8 @@ ImageStitchingNode::ImageStitchingNode()
   RCLCPP_INFO(this->get_logger(), "  Max height: %d (0 = unlimited)", max_height_);
   RCLCPP_INFO(this->get_logger(), "  Max stitch count: %d (0 = unlimited)", max_stitch_count_);
   RCLCPP_INFO(this->get_logger(), "  Publish periodically: %s", publish_periodically_ ? "true" : "false");
-  RCLCPP_INFO(this->get_logger(), "  Crop: top=%.1f%%, bottom=%.1f%%, left=%.1f%%, right=%.1f%%", 
-              crop_top_ * 100, crop_bottom_ * 100, crop_left_ * 100, crop_right_ * 100);
+  RCLCPP_INFO(this->get_logger(), "  Crop: left=%.1f%%, right=%.1f%%", 
+              crop_left_ * 100, crop_right_ * 100);
   RCLCPP_INFO(this->get_logger(), "  Publish debug image: %s", publish_debug_image_ ? "true" : "false");
   
   // Print actual topic names after creation
@@ -325,19 +321,17 @@ void ImageStitchingNode::publishStitchedImage()
                 stitched_image_pub_->get_topic_name(),
                 stitched_image_.cols, stitched_image_.rows, stitch_count_, subscriber_count);
     
-    // Calculate crop region in pixels
+    // Calculate crop region in pixels (left/right only)
     int img_width = stitched_image_.cols;
     int img_height = stitched_image_.rows;
     int crop_x = static_cast<int>(crop_left_ * img_width);
-    int crop_y = static_cast<int>(crop_top_ * img_height);
+    int crop_y = 0;
     int crop_w = img_width - static_cast<int>((crop_left_ + crop_right_) * img_width);
-    int crop_h = img_height - static_cast<int>((crop_top_ + crop_bottom_) * img_height);
+    int crop_h = img_height;
     
     // Ensure valid crop region
     crop_x = std::max(0, std::min(crop_x, img_width - 1));
-    crop_y = std::max(0, std::min(crop_y, img_height - 1));
     crop_w = std::max(1, std::min(crop_w, img_width - crop_x));
-    crop_h = std::max(1, std::min(crop_h, img_height - crop_y));
     
     // Publish debug image with red crop lines (if enabled)
     if (publish_debug_image_) {
