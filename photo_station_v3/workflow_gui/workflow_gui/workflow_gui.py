@@ -1179,59 +1179,70 @@ class ImageDisplayPanel(QGroupBox):
                     
                     # Debug: print paths for troubleshooting
                     print(f"[Auto-crop] Current file: {current_file}")
+                    print(f"[Auto-crop] Current file dir: {current_file_dir}")
                     print(f"[Auto-crop] Workflow GUI base dir: {workflow_gui_base_dir}")
                     print(f"[Auto-crop] Cropping dir: {cropping_dir}")
                     print(f"[Auto-crop] Crop script: {crop_script_path}")
                     print(f"[Auto-crop] Script exists: {os.path.exists(crop_script_path)}")
                     
+                    # Try multiple methods to import
+                    crop_image_grid = None
+                    
+                    # Method 1: Direct import if path exists
                     if os.path.exists(crop_script_path):
                         # Add cropping directory to path
                         if cropping_dir not in sys.path:
                             sys.path.insert(0, cropping_dir)
                         
-                        print(f"[Auto-crop] Importing crop_image from {cropping_dir}")
-                        from crop_image import crop_image_grid
-                        
-                        print(f"[Auto-crop] Applying crop to: {filename}")
-                        print(f"[Auto-crop] Output dir: {final_path}")
-                        
-                        # Apply crop to the saved image
+                        print(f"[Auto-crop] Trying to import crop_image from {cropping_dir}")
                         try:
-                            crop_image_grid(
-                                image_path=filename,
-                                cols=3,  # Default cols value
-                                output_dir=final_path  # Output to same directory
-                            )
-                            print(f"[Auto-crop] Crop completed successfully")
-                            # Update status to show success
-                            try:
-                                self.save_count_label.setText(f"Saved: {self._save_count} (cropped)")
-                            except:
-                                pass
-                        except Exception as crop_error:
-                            # Handle errors from crop_image_grid itself
-                            error_msg = f"Crop execution failed: {str(crop_error)}"
-                            print(f"[Auto-crop] ERROR: {error_msg}")
-                            import traceback
-                            traceback.print_exc()
-                            # Update status with detailed error
-                            try:
-                                error_short = str(crop_error)[:60] + ("..." if len(str(crop_error)) > 60 else "")
-                                short_msg = f"Saved (crop failed: {error_short})"
-                                self.save_count_label.setText(short_msg)
-                            except:
-                                pass
-                    else:
-                        error_msg = f"Cropping script not found: {crop_script_path}"
+                            from crop_image import crop_image_grid
+                            print(f"[Auto-crop] Successfully imported crop_image_grid")
+                        except ImportError as import_err:
+                            print(f"[Auto-crop] Import failed: {import_err}")
+                            # Try using importlib as fallback
+                            import importlib.util
+                            spec = importlib.util.spec_from_file_location("crop_image", crop_script_path)
+                            if spec and spec.loader:
+                                crop_image_module = importlib.util.module_from_spec(spec)
+                                spec.loader.exec_module(crop_image_module)
+                                crop_image_grid = crop_image_module.crop_image_grid
+                                print(f"[Auto-crop] Successfully loaded crop_image using importlib")
+                            else:
+                                raise ImportError(f"Could not load crop_image from {crop_script_path}")
+                    
+                    if crop_image_grid is None:
+                        raise FileNotFoundError(f"Crop script not found: {crop_script_path}")
+                    
+                    # Apply crop to the saved image
+                    print(f"[Auto-crop] Applying crop to: {filename}")
+                    print(f"[Auto-crop] Output dir: {final_path}")
+                    
+                    try:
+                        crop_image_grid(
+                            image_path=filename,
+                            cols=3,  # Default cols value
+                            output_dir=final_path  # Output to same directory
+                        )
+                        print(f"[Auto-crop] Crop completed successfully")
+                        # Update status to show success
+                        try:
+                            self.save_count_label.setText(f"Saved: {self._save_count} (cropped)")
+                        except:
+                            pass
+                    except Exception as crop_error:
+                        # Handle errors from crop_image_grid itself
+                        error_msg = f"Crop execution failed: {str(crop_error)}"
                         print(f"[Auto-crop] ERROR: {error_msg}")
+                        import traceback
+                        traceback.print_exc()
                         # Update status with detailed error
                         try:
-                            short_msg = f"Saved (crop failed: script not found)"
+                            error_short = str(crop_error)[:60] + ("..." if len(str(crop_error)) > 60 else "")
+                            short_msg = f"Saved (crop failed: {error_short})"
                             self.save_count_label.setText(short_msg)
                         except:
                             pass
-                        # Return False to indicate crop failed
-                        return True  # Image saved, but crop failed
                 except ImportError as e:
                     error_msg = f"Failed to import crop_image: {str(e)}"
                     print(f"[Auto-crop] ERROR: {error_msg}")
