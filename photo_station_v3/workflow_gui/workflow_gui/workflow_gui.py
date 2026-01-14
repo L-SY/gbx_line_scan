@@ -1166,20 +1166,20 @@ class ImageDisplayPanel(QGroupBox):
             # Auto-crop if requested
             if auto_crop and subfolder:
                 try:
-                    # Calculate path to cropping module
-                    # workflow_gui.py is in: photo_station_v3/workflow_gui/workflow_gui/
-                    # crop_image.py is in: photo_station_v3/cropping/
+                    # Calculate path to cropping module using relative path
+                    # workflow_gui.py is in: workflow_gui/workflow_gui/
+                    # crop_image.py is in: workflow_gui/cropping/
                     current_file = os.path.abspath(__file__)
                     current_file_dir = os.path.dirname(current_file)
-                    # Go up: workflow_gui -> workflow_gui -> photo_station_v3
-                    workflow_gui_dir = os.path.dirname(current_file_dir)  # workflow_gui/
-                    photo_station_v3_dir = os.path.dirname(workflow_gui_dir)  # photo_station_v3/
-                    cropping_dir = os.path.join(photo_station_v3_dir, 'cropping')
+                    # Go up one level: workflow_gui/workflow_gui/ -> workflow_gui/
+                    workflow_gui_base_dir = os.path.dirname(current_file_dir)
+                    # Join with cropping directory
+                    cropping_dir = os.path.join(workflow_gui_base_dir, 'cropping')
                     crop_script_path = os.path.join(cropping_dir, 'crop_image.py')
                     
                     # Debug: print paths for troubleshooting
                     print(f"[Auto-crop] Current file: {current_file}")
-                    print(f"[Auto-crop] Photo station dir: {photo_station_v3_dir}")
+                    print(f"[Auto-crop] Workflow GUI base dir: {workflow_gui_base_dir}")
                     print(f"[Auto-crop] Cropping dir: {cropping_dir}")
                     print(f"[Auto-crop] Crop script: {crop_script_path}")
                     print(f"[Auto-crop] Script exists: {os.path.exists(crop_script_path)}")
