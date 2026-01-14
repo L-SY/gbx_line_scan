@@ -50,7 +50,7 @@
     
     # Exposure parameters
     # Exposure time in microseconds
-    exposure_time_us: 300.0
+    exposure_time_us: 50.0
     
     # Image control parameters
     # Image height in pixels (0 = use camera default, set via camera SDK before starting capture)
