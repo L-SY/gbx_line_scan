@@ -80,13 +80,13 @@ from pathlib import Path
 # Import numpy first to ensure proper initialization
 import numpy as np
 
-# PIL for image cropping
+# PIL for image cropping (import before sensor_msgs.msg.Image to avoid name conflict)
 try:
-    from PIL import Image, ImageDraw, ImageFont
+    from PIL import Image as PILImage, ImageDraw, ImageFont
     PIL_AVAILABLE = True
 except ImportError:
     PIL_AVAILABLE = False
-    Image = None
+    PILImage = None
     ImageDraw = None
     ImageFont = None
 
@@ -188,7 +188,7 @@ def generate_crop_diagram(
         actual_cols: 列数
         output_path: 输出路径
     """
-    if not PIL_AVAILABLE:
+    if not PIL_AVAILABLE or ImageDraw is None or ImageFont is None:
         print("Warning: PIL not available, skipping diagram generation")
         return
     
@@ -270,11 +270,11 @@ def crop_image_grid(
         cols: 每行的裁切数量（每个代表5cm）
         output_dir: 输出目录
     """
-    if not PIL_AVAILABLE:
-        raise ImportError("PIL (Pillow) is required for image cropping")
+    if not PIL_AVAILABLE or PILImage is None:
+        raise ImportError("PIL (Pillow) is required for image cropping. Please install: pip install Pillow")
     
     # 加载图像
-    img = Image.open(image_path)
+    img = PILImage.open(image_path)
     img_width, img_height = img.size
     
     # 根据每行的5cm图像数量计算裁切尺寸（像素）
