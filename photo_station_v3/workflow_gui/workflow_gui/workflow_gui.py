@@ -1196,31 +1196,70 @@ class ImageDisplayPanel(QGroupBox):
                         print(f"[Auto-crop] Output dir: {final_path}")
                         
                         # Apply crop to the saved image
-                        crop_image_grid(
-                            image_path=filename,
-                            cols=3,  # Default cols value
-                            output_dir=final_path  # Output to same directory
-                        )
-                        print(f"[Auto-crop] Crop completed successfully")
+                        try:
+                            crop_image_grid(
+                                image_path=filename,
+                                cols=3,  # Default cols value
+                                output_dir=final_path  # Output to same directory
+                            )
+                            print(f"[Auto-crop] Crop completed successfully")
+                            # Update status to show success
+                            try:
+                                self.save_count_label.setText(f"Saved: {self._save_count} (cropped)")
+                            except:
+                                pass
+                        except Exception as crop_error:
+                            # Handle errors from crop_image_grid itself
+                            error_msg = f"Crop execution failed: {str(crop_error)}"
+                            print(f"[Auto-crop] ERROR: {error_msg}")
+                            import traceback
+                            traceback.print_exc()
+                            # Update status with detailed error
+                            try:
+                                error_short = str(crop_error)[:60] + ("..." if len(str(crop_error)) > 60 else "")
+                                short_msg = f"Saved (crop failed: {error_short})"
+                                self.save_count_label.setText(short_msg)
+                            except:
+                                pass
                     else:
                         error_msg = f"Cropping script not found: {crop_script_path}"
                         print(f"[Auto-crop] ERROR: {error_msg}")
-                        # Try to update status if possible (may not have access to status_label)
+                        # Update status with detailed error
                         try:
-                            self.save_count_label.setText(f"Saved (crop failed)")
+                            short_msg = f"Saved (crop failed: script not found)"
+                            self.save_count_label.setText(short_msg)
                         except:
                             pass
+                        # Return False to indicate crop failed
+                        return True  # Image saved, but crop failed
                 except ImportError as e:
-                    error_msg = f"Failed to import crop_image: {e}"
+                    error_msg = f"Failed to import crop_image: {str(e)}"
                     print(f"[Auto-crop] ERROR: {error_msg}")
                     import traceback
                     traceback.print_exc()
+                    # Update status with detailed error
+                    try:
+                        short_msg = f"Saved (crop failed: import error - {str(e)[:50]})"
+                        self.save_count_label.setText(short_msg)
+                    except:
+                        pass
+                    # Return True - image saved, crop failed
+                    return True
                 except Exception as e:
-                    error_msg = f"Auto-crop failed: {e}"
+                    error_msg = f"Auto-crop failed: {str(e)}"
                     print(f"[Auto-crop] ERROR: {error_msg}")
                     import traceback
                     traceback.print_exc()
+                    # Update status with detailed error
+                    try:
+                        # Show first 60 chars of error message
+                        error_short = str(e)[:60] + ("..." if len(str(e)) > 60 else "")
+                        short_msg = f"Saved (crop failed: {error_short})"
+                        self.save_count_label.setText(short_msg)
+                    except:
+                        pass
                     # Don't fail the save operation if crop fails
+                    return True
             
             # Keep directory path in input (don't show filename)
             self.save_path_edit.setText(input_path)
@@ -1966,7 +2005,30 @@ class WorkflowGUI(QMainWindow):
         
         saved_count = sum([front_saved, rear_saved])
         if saved_count > 0:
-            self.status_label.setText(f"Auto-saved {saved_count} image(s) and applied crop")
+            # Check if crop failed by looking at save_count_label text
+            front_label_text = self.front_image_panel.save_count_label.text()
+            rear_label_text = self.rear_image_panel.save_count_label.text()
+            
+            # Check if either label contains "crop failed"
+            crop_failed = False
+            crop_error_msg = ""
+            if "crop failed" in front_label_text.lower():
+                crop_failed = True
+                # Extract error message from label
+                if "crop failed:" in front_label_text:
+                    crop_error_msg = front_label_text.split("crop failed:")[-1].strip()
+            elif "crop failed" in rear_label_text.lower():
+                crop_failed = True
+                if "crop failed:" in rear_label_text:
+                    crop_error_msg = rear_label_text.split("crop failed:")[-1].strip()
+            
+            if crop_failed:
+                if crop_error_msg:
+                    self.status_label.setText(f"Auto-saved {saved_count} image(s), but crop failed: {crop_error_msg}")
+                else:
+                    self.status_label.setText(f"Auto-saved {saved_count} image(s), but crop failed (check console for details)")
+            else:
+                self.status_label.setText(f"Auto-saved {saved_count} image(s) and applied crop")
         
         # Reset cameras
         self._auto_reset_cameras()
