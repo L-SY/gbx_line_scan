@@ -52,6 +52,7 @@ private:
   
   // ROS2 publishers
   rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr image_pub_;
+  rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr cropped_image_pub_;
   rclcpp::Publisher<hk_line_camera::msg::FrameInfo>::SharedPtr frame_info_pub_;
   rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr debug_image_pub_;
   

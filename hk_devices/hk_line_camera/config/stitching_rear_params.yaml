@@ -2,7 +2,7 @@
 /**:
   ros__parameters:
     # Input/Output topics
-    input_topic: "rear/image_raw"            # 订阅后相机的图像话题
+    input_topic: "rear/image_raw_crop"       # 订阅后相机裁切后的图像话题
     output_topic: "rear/image_stitched"      # 发布拼接后的图像
     frame_id: "camera_rear_frame"            # Frame ID for published images
     
@@ -20,5 +20,4 @@
     publish_periodically: false        # If true, publish at fixed rate instead of on each image
     publish_rate: 1.0                  # Publishing rate in Hz (if publish_periodically is true)
     
-    # Debug options
-    publish_debug_image: false         # If true, publish color debug image for visualization
+    # Note: cropping is done in camera node; stitching just concatenates.

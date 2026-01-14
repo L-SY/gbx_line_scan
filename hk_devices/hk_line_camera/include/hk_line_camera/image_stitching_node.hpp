@@ -38,7 +38,6 @@ private:
   // ROS2 subscribers and publishers
   rclcpp::Subscription<sensor_msgs::msg::Image>::SharedPtr image_sub_;
   rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr stitched_image_pub_;
-  rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr debug_image_pub_;
   rclcpp::TimerBase::SharedPtr publish_timer_;
   rclcpp::Service<std_srvs::srv::Trigger>::SharedPtr reset_service_;
   
@@ -58,9 +57,6 @@ private:
   double publish_rate_;               // Publishing rate in Hz (if periodic)
   bool reset_on_max_height_;          // Reset when max height is reached
   bool reset_on_max_count_;           // Reset when max count is reached
-  
-  // Debug option
-  bool publish_debug_image_;          // Whether to publish debug image (color version of stitched image)
   
   // Statistics
   int total_frames_processed_;

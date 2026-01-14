@@ -1,7 +1,7 @@
 image_stitching_node:
   ros__parameters:
     # Input/Output topics
-    input_topic: "image_raw"           # Topic to subscribe to (from camera node)
+    input_topic: "image_raw_crop"      # Topic to subscribe to (from camera node)
     output_topic: "image_stitched"     # Topic to publish stitched images to
     frame_id: "camera_frame"           # Frame ID for published images
     
@@ -19,6 +19,5 @@ image_stitching_node:
     publish_periodically: false        # If true, publish at fixed rate instead of on each image
     publish_rate: 1.0                  # Publishing rate in Hz (if publish_periodically is true)
     
-    # Debug options
-    publish_debug_image: false         # If true, publish color debug image for visualization
+    # Note: cropping is done in camera node; stitching just concatenates.
 

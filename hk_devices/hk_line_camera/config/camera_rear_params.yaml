@@ -59,6 +59,6 @@
     
     # Cropping parameters (percentage 0.0-1.0)
     # Crop left/right edges before publishing
-    crop_left: 0.0                # Percentage to crop from left
-    crop_right: 0.0               # Percentage to crop from right
+    crop_left: 0.34                # Percentage to crop from left
+    crop_right: 0.345               # Percentage to crop from right
     publish_debug_image: true     # If true, publish debug image with red crop lines

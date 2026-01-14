@@ -100,8 +100,13 @@ HkLineCameraNode::HkLineCameraNode()
   publish_frame_info_ = this->get_parameter("publish_frame_info").as_bool();
   std::string frame_info_topic = this->get_parameter("frame_info_topic").as_string();
   
-  // Create image publisher (using standard ROS2 publisher to avoid shared_from_this issue)
+  // Create publishers (using standard ROS2 publisher to avoid shared_from_this issue)
   image_pub_ = this->create_publisher<sensor_msgs::msg::Image>(image_topic, 10);
+  {
+    std::string crop_topic = image_topic + "_crop";
+    cropped_image_pub_ = this->create_publisher<sensor_msgs::msg::Image>(crop_topic, 10);
+    RCLCPP_INFO(this->get_logger(), "Cropped image publisher initialized on topic: %s", crop_topic.c_str());
+  }
   
   // Create frame info publisher if enabled
   if (publish_frame_info_) {
@@ -109,8 +114,8 @@ HkLineCameraNode::HkLineCameraNode()
     RCLCPP_INFO(this->get_logger(), "Frame info publisher initialized on topic: %s", frame_info_topic.c_str());
   }
   
-  // Create debug image publisher if enabled
-  if (publish_debug_image_) {
+  // Create debug image publisher on image_topic_debug
+  {
     std::string debug_topic = image_topic + "_debug";
     debug_image_pub_ = this->create_publisher<sensor_msgs::msg::Image>(debug_topic, 10);
     RCLCPP_INFO(this->get_logger(), "Debug image publisher initialized on topic: %s", debug_topic.c_str());
@@ -160,13 +165,6 @@ HkLineCameraNode::HkLineCameraNode()
           } else if (param.get_name() == "publish_debug_image") {
             bool val = param.as_bool();
             publish_debug_image_ = val;
-            if (val && !debug_image_pub_) {
-              // Create publisher if it doesn't exist
-              std::string image_topic = this->get_parameter("image_topic").as_string();
-              std::string debug_topic = image_topic + "_debug";
-              debug_image_pub_ = this->create_publisher<sensor_msgs::msg::Image>(debug_topic, 10);
-              RCLCPP_INFO(this->get_logger(), "Debug image publisher created on topic: %s", debug_topic.c_str());
-            }
             RCLCPP_INFO(this->get_logger(), "Updated publish_debug_image: %s", val ? "true" : "false");
           }
         }
@@ -656,8 +654,11 @@ void HkLineCameraNode::processImage(unsigned char *pData, MV_FRAME_OUT_INFO_EX* 
 {
   std::lock_guard<std::mutex> lock(image_mutex_);
   
-  // Check if we have any subscribers for either image or frame info
-  bool has_image_subscribers = image_pub_->get_subscription_count() > 0;
+  // Check if we have any subscribers for image output
+  bool has_image_subscribers =
+    (image_pub_ && image_pub_->get_subscription_count() > 0) ||
+    (cropped_image_pub_ && cropped_image_pub_->get_subscription_count() > 0) ||
+    (publish_debug_image_ && debug_image_pub_ && debug_image_pub_->get_subscription_count() > 0);
   bool has_frame_info_subscribers = publish_frame_info_ && frame_info_pub_ && 
                                      frame_info_pub_->get_subscription_count() > 0;
   
@@ -762,7 +763,7 @@ void HkLineCameraNode::processImage(unsigned char *pData, MV_FRAME_OUT_INFO_EX* 
         break;
     }
     
-    // Calculate crop region for debug image
+    // Calculate crop region in pixels (based on original image)
     int img_width = image.cols;
     int img_height = image.rows;
     int crop_x = static_cast<int>(crop_left_ * img_width);
@@ -772,8 +773,8 @@ void HkLineCameraNode::processImage(unsigned char *pData, MV_FRAME_OUT_INFO_EX* 
     crop_x = std::max(0, std::min(crop_x, img_width - 1));
     crop_w = std::max(1, std::min(crop_w, img_width - crop_x));
     
-    // Publish debug image with red crop lines (if enabled)
-    if (publish_debug_image_ && debug_image_pub_) {
+    // Publish debug image with red crop lines (if enabled). This is ALWAYS based on the original image.
+    if (publish_debug_image_ && debug_image_pub_ && debug_image_pub_->get_subscription_count() > 0) {
       cv::Mat debug_image;
       // Convert to color if grayscale
       if (image.channels() == 1) {
@@ -800,28 +801,50 @@ void HkLineCameraNode::processImage(unsigned char *pData, MV_FRAME_OUT_INFO_EX* 
       debug_image_pub_->publish(*(debug_cv_image.toImageMsg()));
     }
     
-    // Apply left/right cropping if configured
-    if (crop_left_ > 0.0 || crop_right_ > 0.0) {
-      cv::Rect crop_roi(crop_x, 0, crop_w, image.rows);
-      image = image(crop_roi).clone();
+    // Publish cropped image on {image_topic}_crop (used for stitching)
+    if (cropped_image_pub_ && cropped_image_pub_->get_subscription_count() > 0) {
+      cv::Mat cropped = image;
+      if (crop_left_ > 0.0 || crop_right_ > 0.0) {
+        cv::Rect crop_roi(crop_x, 0, crop_w, image.rows);
+        cropped = image(crop_roi).clone();
+      } else if (!image.isContinuous()) {
+        // Ensure safe copy for ROS message
+        cropped = image.clone();
+      }
+
+      sensor_msgs::msg::Image crop_msg;
+      crop_msg.header.stamp = ros_stamp;
+      crop_msg.header.frame_id = frame_id_;
+      crop_msg.width = cropped.cols;
+      crop_msg.height = cropped.rows;
+      crop_msg.encoding = encoding;
+      crop_msg.is_bigendian = false;
+      crop_msg.step = cropped.step;
+
+      size_t crop_size = crop_msg.step * crop_msg.height;
+      crop_msg.data.resize(crop_size);
+      memcpy(crop_msg.data.data(), cropped.data, crop_size);
+
+      cropped_image_pub_->publish(crop_msg);
     }
-    
-    // Create ROS2 image message
-    sensor_msgs::msg::Image img_msg;
-    img_msg.header.stamp = ros_stamp;  // Use same timestamp as frame_info for synchronization
-    img_msg.header.frame_id = frame_id_;
-    img_msg.width = image.cols;
-    img_msg.height = image.rows;
-    img_msg.encoding = encoding;
-    img_msg.is_bigendian = false;
-    img_msg.step = image.step;
-    
-    size_t data_size = img_msg.step * img_msg.height;
-    img_msg.data.resize(data_size);
-    memcpy(img_msg.data.data(), image.data, data_size);
-    
-    // Publish image
-    image_pub_->publish(img_msg);
+
+    // Publish original (uncropped) image on image_topic
+    if (image_pub_ && image_pub_->get_subscription_count() > 0) {
+      sensor_msgs::msg::Image img_msg;
+      img_msg.header.stamp = ros_stamp;  // Use same timestamp as frame_info for synchronization
+      img_msg.header.frame_id = frame_id_;
+      img_msg.width = image.cols;
+      img_msg.height = image.rows;
+      img_msg.encoding = encoding;
+      img_msg.is_bigendian = false;
+      img_msg.step = image.step;
+
+      size_t data_size = img_msg.step * img_msg.height;
+      img_msg.data.resize(data_size);
+      memcpy(img_msg.data.data(), image.data, data_size);
+
+      image_pub_->publish(img_msg);
+    }
     
   } catch (const std::exception& e) {
     RCLCPP_ERROR(this->get_logger(), "Error processing image: %s", e.what());

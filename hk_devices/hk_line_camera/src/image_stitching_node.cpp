@@ -20,9 +20,6 @@ ImageStitchingNode::ImageStitchingNode()
   this->declare_parameter<bool>("reset_on_max_height", true);
   this->declare_parameter<bool>("reset_on_max_count", true);
   
-  // Debug option
-  this->declare_parameter<bool>("publish_debug_image", false);
-  
   // Get parameters
   input_topic_ = this->get_parameter("input_topic").as_string();
   output_topic_ = this->get_parameter("output_topic").as_string();
@@ -33,9 +30,6 @@ ImageStitchingNode::ImageStitchingNode()
   publish_rate_ = this->get_parameter("publish_rate").as_double();
   reset_on_max_height_ = this->get_parameter("reset_on_max_height").as_bool();
   reset_on_max_count_ = this->get_parameter("reset_on_max_count").as_bool();
-  
-  // Get debug option
-  publish_debug_image_ = this->get_parameter("publish_debug_image").as_bool();
   
   stitch_count_ = 0;
   
@@ -52,11 +46,6 @@ ImageStitchingNode::ImageStitchingNode()
   // Create publishers
   stitched_image_pub_ = this->create_publisher<sensor_msgs::msg::Image>(output_topic_, 10);
   RCLCPP_INFO(this->get_logger(), "Created publisher on topic: %s", stitched_image_pub_->get_topic_name());
-  
-  // Create debug image publisher
-  std::string debug_topic = output_topic_ + "_debug";
-  debug_image_pub_ = this->create_publisher<sensor_msgs::msg::Image>(debug_topic, 10);
-  RCLCPP_INFO(this->get_logger(), "Created debug image publisher on topic: %s", debug_image_pub_->get_topic_name());
   
   // Create timer for periodic publishing (if enabled)
   if (publish_periodically_) {
@@ -81,8 +70,6 @@ ImageStitchingNode::ImageStitchingNode()
   RCLCPP_INFO(this->get_logger(), "  Max height: %d (0 = unlimited)", max_height_);
   RCLCPP_INFO(this->get_logger(), "  Max stitch count: %d (0 = unlimited)", max_stitch_count_);
   RCLCPP_INFO(this->get_logger(), "  Publish periodically: %s", publish_periodically_ ? "true" : "false");
-  RCLCPP_INFO(this->get_logger(), "  Publish debug image: %s", publish_debug_image_ ? "true" : "false");
-  
   // Print actual topic names after creation
   if (image_sub_) {
     RCLCPP_INFO(this->get_logger(), "  Actual subscribed topic: %s", image_sub_->get_topic_name());
@@ -309,26 +296,6 @@ void ImageStitchingNode::publishStitchedImage()
                 "Published stitched image to topic '%s': %dx%d pixels, %d frames stitched, %d subscribers", 
                 stitched_image_pub_->get_topic_name(),
                 stitched_image_.cols, stitched_image_.rows, stitch_count_, subscriber_count);
-    
-    // Publish debug image (color version for visualization)
-    if (publish_debug_image_) {
-      cv::Mat debug_image;
-      // Convert to color if grayscale for better visualization
-      if (stitched_image_.channels() == 1) {
-        cv::cvtColor(stitched_image_, debug_image, cv::COLOR_GRAY2BGR);
-      } else {
-        debug_image = stitched_image_.clone();
-      }
-      
-      cv_bridge::CvImage debug_cv_image;
-      debug_cv_image.header.stamp = this->now();
-      debug_cv_image.header.frame_id = frame_id_;
-      debug_cv_image.encoding = sensor_msgs::image_encodings::BGR8;
-      debug_cv_image.image = debug_image;
-      debug_image_pub_->publish(*(debug_cv_image.toImageMsg()));
-      
-      RCLCPP_DEBUG(this->get_logger(), "Published debug image");
-    }
     
   } catch (const std::exception& e) {
     RCLCPP_ERROR(this->get_logger(), "Error publishing stitched image: %s", e.what());
