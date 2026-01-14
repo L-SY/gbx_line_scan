@@ -878,19 +878,6 @@ class ImageDisplayPanel(QGroupBox):
         # Control bar
         control_layout = QHBoxLayout()
         
-        self.reset_btn = QPushButton("Reset")
-        self.reset_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #E0E0E0;
-                border: 1px solid #808080;
-                border-radius: 3px;
-                padding: 5px 10px;
-            }
-            QPushButton:hover { background-color: #D0D0D0; }
-            QPushButton:pressed { background-color: #C0C0C0; }
-        """)
-        control_layout.addWidget(self.reset_btn)
-        
         control_layout.addStretch()
         
         self.info_label = QLabel("Waiting for image...")
@@ -902,16 +889,41 @@ class ImageDisplayPanel(QGroupBox):
         # Save path bar (similar to Topic bar)
         save_layout = QHBoxLayout()
         
-        save_path_label = QLabel("Save Path:")
+        save_path_label = QLabel("Path:")
         save_layout.addWidget(save_path_label)
         
-        from datetime import datetime
-        default_save_path = f"image_{datetime.now().strftime('%Y%m%d_%H%M%S')}.png"
         self.save_path_edit = QLineEdit()
         self.save_path_edit.setMinimumWidth(500)
-        self.save_path_edit.setText(default_save_path)
         self.save_path_edit.setPlaceholderText("Enter save path...")
         save_layout.addWidget(self.save_path_edit)
+        
+        self.browse_btn = QPushButton("Browse")
+        self.browse_btn.setMaximumWidth(80)
+        self.browse_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #E0E0E0;
+                border: 1px solid #808080;
+                border-radius: 3px;
+                padding: 5px;
+            }
+            QPushButton:hover { background-color: #D0D0D0; }
+            QPushButton:pressed { background-color: #C0C0C0; }
+        """)
+        self.browse_btn.clicked.connect(self._on_browse_clicked)
+        save_layout.addWidget(self.browse_btn)
+        
+        self.reset_btn = QPushButton("Reset")
+        self.reset_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #E0E0E0;
+                border: 1px solid #808080;
+                border-radius: 3px;
+                padding: 5px 10px;
+            }
+            QPushButton:hover { background-color: #D0D0D0; }
+            QPushButton:pressed { background-color: #C0C0C0; }
+        """)
+        save_layout.addWidget(self.reset_btn)
         
         self.save_btn = QPushButton("Save")
         self.save_btn.setMaximumWidth(80)
@@ -1023,18 +1035,51 @@ class ImageDisplayPanel(QGroupBox):
         self.image_label.setText("Waiting for image...")
         self.info_label.setText("Waiting for image...")
     
+    def _on_browse_clicked(self):
+        """Open file dialog to select save path"""
+        from datetime import datetime
+        default_name = f"image_{datetime.now().strftime('%Y%m%d_%H%M%S')}.png"
+        
+        filename, _ = QFileDialog.getSaveFileName(
+            self, "Save Image", default_name,
+            "PNG Images (*.png);;JPEG Images (*.jpg);;All Files (*.*)"
+        )
+        
+        if filename:
+            self.save_path_edit.setText(filename)
+    
     def _on_save_clicked(self):
         """Save current image to file"""
         if self._current_image is None:
             return
         
-        filename = self.save_path_edit.text().strip()
-        if not filename:
-            return
+        import os
+        from datetime import datetime
+        
+        # Get base path from input (could be directory or file path)
+        input_path = self.save_path_edit.text().strip()
+        
+        # Generate filename with current time (精确到秒)
+        time_str = datetime.now().strftime('%Y%m%d_%H%M%S')
+        time_based_filename = f"image_{time_str}.png"
+        
+        # Determine final save path: always use current time for filename
+        if not input_path:
+            # Empty input: use current directory with time-based name
+            filename = time_based_filename
+        elif os.path.isdir(input_path):
+            # Input is a directory: add time-based filename
+            filename = os.path.join(input_path, time_based_filename)
+        else:
+            # Input is a file path: replace filename with time-based name, keep directory
+            save_dir = os.path.dirname(input_path)
+            if save_dir:
+                filename = os.path.join(save_dir, time_based_filename)
+            else:
+                filename = time_based_filename
         
         try:
             # Ensure directory exists
-            import os
             save_dir = os.path.dirname(filename)
             if save_dir and not os.path.exists(save_dir):
                 os.makedirs(save_dir, exist_ok=True)
@@ -1043,10 +1088,14 @@ class ImageDisplayPanel(QGroupBox):
             self._save_count += 1
             self.save_count_label.setText(f"Saved: {self._save_count}")
             
-            # Update default path for next save
-            from datetime import datetime
-            default_save_path = f"image_{datetime.now().strftime('%Y%m%d_%H%M%S')}.png"
-            self.save_path_edit.setText(default_save_path)
+            # Update path for next save: keep directory, use new timestamp for filename
+            next_time_str = datetime.now().strftime('%Y%m%d_%H%M%S')
+            next_filename = f"image_{next_time_str}.png"
+            if save_dir:
+                next_save_path = os.path.join(save_dir, next_filename)
+            else:
+                next_save_path = next_filename
+            self.save_path_edit.setText(next_save_path)
         except Exception as e:
             self.save_count_label.setText(f"Save failed: {str(e)[:20]}")
 
