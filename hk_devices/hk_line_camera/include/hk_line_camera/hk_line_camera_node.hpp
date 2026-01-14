@@ -54,6 +54,9 @@ private:
   rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr image_pub_;
   rclcpp::Publisher<hk_line_camera::msg::FrameInfo>::SharedPtr frame_info_pub_;
   
+  // Parameter callback handle
+  rclcpp::node_interfaces::OnSetParametersCallbackHandle::SharedPtr param_callback_handle_;
+  
   // Parameters
   // Frame Trigger parameters (FrameBurstStart - 帧触发)
   bool frame_trigger_enabled_;

@@ -1,8 +1,10 @@
 #include "hk_line_camera/hk_line_camera_node.hpp"
 #include <sensor_msgs/image_encodings.hpp>
+#include <rcl_interfaces/msg/set_parameters_result.hpp>
 #include <chrono>
 #include <cstring>
 #include <stdexcept>
+#include <algorithm>
 
 HkLineCameraNode::HkLineCameraNode()
   : Node("hk_line_camera_node"),
@@ -118,6 +120,35 @@ HkLineCameraNode::HkLineCameraNode()
     if (crop_left_ > 0.0 || crop_right_ > 0.0) {
       RCLCPP_INFO(this->get_logger(), "Image crop: left=%.1f%%, right=%.1f%%", crop_left_ * 100, crop_right_ * 100);
     }
+    
+    // Register parameter callback for dynamic reconfigure
+    param_callback_handle_ = this->add_on_set_parameters_callback(
+      [this](const std::vector<rclcpp::Parameter> & parameters) {
+        rcl_interfaces::msg::SetParametersResult result;
+        result.successful = true;
+        for (const auto & param : parameters) {
+          if (param.get_name() == "crop_left") {
+            double val = param.as_double();
+            if (val >= 0.0 && val < 1.0 && (val + crop_right_) < 1.0) {
+              crop_left_ = val;
+              RCLCPP_INFO(this->get_logger(), "Updated crop_left: %.1f%%", crop_left_ * 100);
+            } else {
+              result.successful = false;
+              result.reason = "crop_left must be in [0, 1) and crop_left + crop_right < 1";
+            }
+          } else if (param.get_name() == "crop_right") {
+            double val = param.as_double();
+            if (val >= 0.0 && val < 1.0 && (crop_left_ + val) < 1.0) {
+              crop_right_ = val;
+              RCLCPP_INFO(this->get_logger(), "Updated crop_right: %.1f%%", crop_right_ * 100);
+            } else {
+              result.successful = false;
+              result.reason = "crop_right must be in [0, 1) and crop_left + crop_right < 1";
+            }
+          }
+        }
+        return result;
+      });
   } else {
     RCLCPP_ERROR(this->get_logger(), "Failed to initialize camera");
     throw std::runtime_error("Failed to initialize camera");
