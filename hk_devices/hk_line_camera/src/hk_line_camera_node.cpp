@@ -370,6 +370,11 @@ bool HkLineCameraNode::configureCameraParameters()
     RCLCPP_WARN(this->get_logger(), "Failed to set image height, continuing anyway");
   }
   
+  // Enable Chunk mode to get exposure time, gain, timestamp, etc.
+  if (!enableChunkMode()) {
+    RCLCPP_WARN(this->get_logger(), "Failed to enable Chunk mode, frame info may be incomplete");
+  }
+  
   RCLCPP_INFO(this->get_logger(), "Camera parameters configured successfully");
   return true;
 }
@@ -590,6 +595,87 @@ bool HkLineCameraNode::setImageHeight()
   }
 }
 
+bool HkLineCameraNode::enableChunkMode()
+{
+  RCLCPP_INFO(this->get_logger(), "Enabling Chunk mode...");
+  
+  // Enable Chunk Mode Active
+  if (!setBoolValue("ChunkModeActive", true)) {
+    RCLCPP_WARN(this->get_logger(), "Failed to enable ChunkModeActive, Chunk may not be supported");
+    return false;
+  }
+  RCLCPP_INFO(this->get_logger(), "ChunkModeActive enabled");
+  
+  // Enable Exposure Chunk
+  if (setEnumValueByString("ChunkSelector", "Exposure")) {
+    if (setBoolValue("ChunkEnable", true)) {
+      RCLCPP_INFO(this->get_logger(), "Exposure Chunk enabled");
+    } else {
+      RCLCPP_WARN(this->get_logger(), "Failed to enable Exposure Chunk");
+    }
+  } else {
+    RCLCPP_WARN(this->get_logger(), "Exposure ChunkSelector not available");
+  }
+  
+  // Enable Gain Chunk
+  if (setEnumValueByString("ChunkSelector", "Gain")) {
+    if (setBoolValue("ChunkEnable", true)) {
+      RCLCPP_INFO(this->get_logger(), "Gain Chunk enabled");
+    } else {
+      RCLCPP_WARN(this->get_logger(), "Failed to enable Gain Chunk");
+    }
+  } else {
+    RCLCPP_WARN(this->get_logger(), "Gain ChunkSelector not available");
+  }
+  
+  // Enable Timestamp Chunk
+  if (setEnumValueByString("ChunkSelector", "Timestamp")) {
+    if (setBoolValue("ChunkEnable", true)) {
+      RCLCPP_INFO(this->get_logger(), "Timestamp Chunk enabled");
+    } else {
+      RCLCPP_WARN(this->get_logger(), "Failed to enable Timestamp Chunk");
+    }
+  } else {
+    RCLCPP_WARN(this->get_logger(), "Timestamp ChunkSelector not available");
+  }
+  
+  // Enable FrameCounter Chunk (for frame_counter)
+  if (setEnumValueByString("ChunkSelector", "FrameCounter")) {
+    if (setBoolValue("ChunkEnable", true)) {
+      RCLCPP_INFO(this->get_logger(), "FrameCounter Chunk enabled");
+    } else {
+      RCLCPP_WARN(this->get_logger(), "Failed to enable FrameCounter Chunk");
+    }
+  } else {
+    RCLCPP_WARN(this->get_logger(), "FrameCounter ChunkSelector not available");
+  }
+  
+  // Enable TriggerIndex Chunk (for trigger_index)
+  if (setEnumValueByString("ChunkSelector", "TriggerIndex")) {
+    if (setBoolValue("ChunkEnable", true)) {
+      RCLCPP_INFO(this->get_logger(), "TriggerIndex Chunk enabled");
+    } else {
+      RCLCPP_WARN(this->get_logger(), "Failed to enable TriggerIndex Chunk");
+    }
+  } else {
+    RCLCPP_WARN(this->get_logger(), "TriggerIndex ChunkSelector not available");
+  }
+  
+  // Enable Encoder Chunk (for encoder information)
+  if (setEnumValueByString("ChunkSelector", "EncoderValue")) {
+    if (setBoolValue("ChunkEnable", true)) {
+      RCLCPP_INFO(this->get_logger(), "EncoderValue Chunk enabled");
+    } else {
+      RCLCPP_WARN(this->get_logger(), "Failed to enable EncoderValue Chunk");
+    }
+  } else {
+    RCLCPP_WARN(this->get_logger(), "EncoderValue ChunkSelector not available");
+  }
+  
+  RCLCPP_INFO(this->get_logger(), "Chunk mode configuration completed");
+  return true;
+}
+
 int HkLineCameraNode::findCameraByIp(MV_CC_DEVICE_INFO_LIST* pDeviceList, const std::string& ip)
 {
   // Parse target IP address
@@ -634,6 +720,24 @@ bool HkLineCameraNode::setFloatValue(const std::string& key, float value)
 bool HkLineCameraNode::setIntValue(const std::string& key, int64_t value)
 {
   int nRet = MV_CC_SetIntValueEx(camera_handle_, key.c_str(), value);
+  if (MV_OK != nRet) {
+    return false;
+  }
+  return true;
+}
+
+bool HkLineCameraNode::setBoolValue(const std::string& key, bool value)
+{
+  int nRet = MV_CC_SetBoolValue(camera_handle_, key.c_str(), value);
+  if (MV_OK != nRet) {
+    return false;
+  }
+  return true;
+}
+
+bool HkLineCameraNode::setEnumValueByString(const std::string& key, const std::string& value)
+{
+  int nRet = MV_CC_SetEnumValueByString(camera_handle_, key.c_str(), value.c_str());
   if (MV_OK != nRet) {
     return false;
   }

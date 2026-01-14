@@ -39,11 +39,14 @@ private:
   bool setEncoderParameters();
   bool setExposureParameters();
   bool setImageHeight();
+  bool enableChunkMode();
   
   // Helper functions
   bool setEnumValue(const std::string& key, int value);
+  bool setEnumValueByString(const std::string& key, const std::string& value);
   bool setFloatValue(const std::string& key, float value);
   bool setIntValue(const std::string& key, int64_t value);
+  bool setBoolValue(const std::string& key, bool value);
   
   // Camera handle
   void* camera_handle_;
