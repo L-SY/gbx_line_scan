@@ -34,12 +34,23 @@ else
 fi
 
 # Source .bashrc 加载所有环境配置（包括ROS）
-# 注意：在非交互式 shell 中，.bashrc 可能不会执行，需要强制 source
+# 注意：在非交互式 shell 中，需要显式 source
 if [ -f "$HOME/.bashrc" ]; then
-    # 使用 bash -i 来确保加载交互式配置，或者直接 source
-    bash -c "source $HOME/.bashrc" >> "$LOG_FILE" 2>&1
-    # 再次在当前 shell 中 source（因为上面的子 shell 不会影响当前环境）
+    # 强制 source .bashrc（即使是非交互式shell）
+    set +e  # 允许错误继续执行
     source "$HOME/.bashrc" >> "$LOG_FILE" 2>&1
+    set -e
+    
+    # 如果 .bashrc 中有条件判断，尝试直接 source ROS 环境
+    if [ -f /opt/ros/humble/setup.bash ]; then
+        source /opt/ros/humble/setup.bash >> "$LOG_FILE" 2>&1
+    fi
+    
+    # 尝试 source 工作空间（如果存在）
+    if [ -f "$HOME/lsy/gbx_line_ws/install/setup.bash" ]; then
+        source "$HOME/lsy/gbx_line_ws/install/setup.bash" >> "$LOG_FILE" 2>&1
+    fi
+    
     echo "[$(date)] 已加载 .bashrc" >> "$LOG_FILE"
     echo "[$(date)] ROS_DISTRO: ${ROS_DISTRO:-未设置}" >> "$LOG_FILE"
     echo "[$(date)] ROS2 路径: $(which ros2 2>/dev/null || echo '未找到')" >> "$LOG_FILE"
@@ -59,8 +70,18 @@ echo "[$(date)] 正在启动 ros2 launch workflow_gui workflow_gui.launch.py" >>
 echo "[$(date)] 当前 PATH: $PATH" >> "$LOG_FILE"
 echo "[$(date)] ros2 命令位置: $(which ros2)" >> "$LOG_FILE"
 
-# 使用 bash -c 确保在正确的环境中执行
-bash -c "source $HOME/.bashrc 2>/dev/null; nohup ros2 launch workflow_gui workflow_gui.launch.py >> $LOG_FILE 2>&1 &" >> "$LOG_FILE" 2>&1
+# 使用 bash -l 确保加载登录shell的环境，然后执行ros2 launch
+bash -l -c "
+    source $HOME/.bashrc 2>/dev/null || true
+    if [ -f /opt/ros/humble/setup.bash ]; then
+        source /opt/ros/humble/setup.bash
+    fi
+    if [ -f $HOME/lsy/gbx_line_ws/install/setup.bash ]; then
+        source $HOME/lsy/gbx_line_ws/install/setup.bash
+    fi
+    cd $HOME/lsy/gbx_line_ws
+    nohup ros2 launch workflow_gui workflow_gui.launch.py >> $LOG_FILE 2>&1 &
+" >> "$LOG_FILE" 2>&1
 
 # 等待一下让进程启动
 sleep 2

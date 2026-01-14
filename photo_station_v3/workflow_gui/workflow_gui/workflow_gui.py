@@ -688,12 +688,12 @@ class WorkflowNode(Node):
     # Motor control methods
     def publish_front_speed(self, speed: float):
         msg = Float64()
-        msg.data = speed
+        msg.data = float(speed)  # 确保是 float 类型
         self.front_cmd_pub.publish(msg)
     
     def publish_rear_speed(self, speed: float):
         msg = Float64()
-        msg.data = speed
+        msg.data = float(speed)  # 确保是 float 类型
         self.rear_cmd_pub.publish(msg)
     
     def publish_front_enable(self, enable: bool):
@@ -1981,8 +1981,8 @@ class WorkflowGUI(QMainWindow):
         self.status_label.setText(f"Both motors speed set to: {speed:.1f} RPM")
     
     def _on_emergency_stop(self):
-        self.ros_node.publish_front_speed(0)
-        self.ros_node.publish_rear_speed(0)
+        self.ros_node.publish_front_speed(0.0)
+        self.ros_node.publish_rear_speed(0.0)
         self.ros_node.publish_front_enable(False)
         self.ros_node.publish_rear_enable(False)
         
