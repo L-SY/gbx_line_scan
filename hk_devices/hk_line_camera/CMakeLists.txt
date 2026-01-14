@@ -14,6 +14,13 @@ find_package(std_srvs REQUIRED)
 find_package(cv_bridge REQUIRED)
 find_package(image_transport REQUIRED)
 find_package(OpenCV REQUIRED)
+find_package(rosidl_default_generators REQUIRED)
+
+# Generate custom messages
+rosidl_generate_interfaces(${PROJECT_NAME}
+  "msg/FrameInfo.msg"
+  DEPENDENCIES std_msgs
+)
 
 # Set SDK paths
 set(MVS_SDK_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../../SDK/MVS-4.6.1_x86_64_20251217/MVS")
@@ -68,6 +75,10 @@ ament_target_dependencies(hk_line_camera_node
   cv_bridge
   image_transport
 )
+
+# Link generated message library to the node
+rosidl_get_typesupport_target(cpp_typesupport_target ${PROJECT_NAME} "rosidl_typesupport_cpp")
+target_link_libraries(hk_line_camera_node ${cpp_typesupport_target})
 
 # Add image stitching node executable (doesn't need SDK libraries)
 add_executable(image_stitching_node src/image_stitching_node.cpp)

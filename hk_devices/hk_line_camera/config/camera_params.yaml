@@ -8,6 +8,11 @@ hk_line_camera_node:
     frame_id: "camera_frame"
     image_topic: "image_raw"
     
+    # Frame info publishing (帧信息发布)
+    # 发布帧的编码器信息、IO状态、时间戳等详细信息
+    publish_frame_info: true      # 是否发布帧信息
+    frame_info_topic: "frame_info"  # 帧信息话题名
+    
     # ============================================
     # Trigger Configuration (触发配置)
     # ============================================

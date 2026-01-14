@@ -46,6 +46,10 @@ HkLineCameraNode::HkLineCameraNode()
   this->declare_parameter<std::string>("frame_id", "camera_frame");
   this->declare_parameter<std::string>("image_topic", "image_raw");
   
+  // Frame info publishing
+  this->declare_parameter<bool>("publish_frame_info", true);
+  this->declare_parameter<std::string>("frame_info_topic", "frame_info");
+  
   // Get parameters
   // Frame trigger
   frame_trigger_enabled_ = this->get_parameter("frame_trigger_enabled").as_bool();
@@ -80,8 +84,18 @@ HkLineCameraNode::HkLineCameraNode()
   frame_id_ = this->get_parameter("frame_id").as_string();
   std::string image_topic = this->get_parameter("image_topic").as_string();
   
+  // Frame info publishing
+  publish_frame_info_ = this->get_parameter("publish_frame_info").as_bool();
+  std::string frame_info_topic = this->get_parameter("frame_info_topic").as_string();
+  
   // Create image publisher (using standard ROS2 publisher to avoid shared_from_this issue)
   image_pub_ = this->create_publisher<sensor_msgs::msg::Image>(image_topic, 10);
+  
+  // Create frame info publisher if enabled
+  if (publish_frame_info_) {
+    frame_info_pub_ = this->create_publisher<hk_line_camera::msg::FrameInfo>(frame_info_topic, 10);
+    RCLCPP_INFO(this->get_logger(), "Frame info publisher initialized on topic: %s", frame_info_topic.c_str());
+  }
   
   RCLCPP_INFO(this->get_logger(), "Initializing Hikvision line scan camera...");
   
@@ -577,7 +591,60 @@ void HkLineCameraNode::processImage(unsigned char *pData, MV_FRAME_OUT_INFO_EX* 
 {
   std::lock_guard<std::mutex> lock(image_mutex_);
   
-  if (!camera_initialized_ || image_pub_->get_subscription_count() == 0) {
+  // Check if we have any subscribers for either image or frame info
+  bool has_image_subscribers = image_pub_->get_subscription_count() > 0;
+  bool has_frame_info_subscribers = publish_frame_info_ && frame_info_pub_ && 
+                                     frame_info_pub_->get_subscription_count() > 0;
+  
+  if (!camera_initialized_ || (!has_image_subscribers && !has_frame_info_subscribers)) {
+    return;
+  }
+  
+  // Get current ROS timestamp for synchronization
+  auto ros_stamp = this->now();
+  
+  // Publish frame info if enabled and has subscribers
+  if (has_frame_info_subscribers) {
+    hk_line_camera::msg::FrameInfo frame_info_msg;
+    
+    // Header
+    frame_info_msg.header.stamp = ros_stamp;
+    frame_info_msg.header.frame_id = frame_id_;
+    
+    // Frame number and counter
+    frame_info_msg.frame_num = pFrameInfo->nFrameNum;
+    frame_info_msg.frame_counter = pFrameInfo->nFrameCounter;
+    frame_info_msg.trigger_index = pFrameInfo->nTriggerIndex;
+    
+    // Encoder info (line trigger related)
+    frame_info_msg.first_line_encoder = pFrameInfo->nFirstLineEncoderCount;
+    frame_info_msg.last_line_encoder = pFrameInfo->nLastLineEncoderCount;
+    frame_info_msg.encoder_diff = (pFrameInfo->nLastLineEncoderCount >= pFrameInfo->nFirstLineEncoderCount) ?
+                                   (pFrameInfo->nLastLineEncoderCount - pFrameInfo->nFirstLineEncoderCount) :
+                                   (pFrameInfo->nFirstLineEncoderCount - pFrameInfo->nLastLineEncoderCount);
+    
+    // IO status
+    frame_info_msg.input_status = pFrameInfo->nInput;
+    frame_info_msg.output_status = pFrameInfo->nOutput;
+    
+    // Image parameters (use extended dimensions for line scan cameras)
+    frame_info_msg.width = pFrameInfo->nExtendWidth > 0 ? pFrameInfo->nExtendWidth : pFrameInfo->nWidth;
+    frame_info_msg.height = pFrameInfo->nExtendHeight > 0 ? pFrameInfo->nExtendHeight : pFrameInfo->nHeight;
+    frame_info_msg.exposure_time = pFrameInfo->fExposureTime;
+    frame_info_msg.gain = pFrameInfo->fGain;
+    
+    // Device timestamp
+    frame_info_msg.dev_timestamp_high = pFrameInfo->nDevTimeStampHigh;
+    frame_info_msg.dev_timestamp_low = pFrameInfo->nDevTimeStampLow;
+    
+    // Lost packet info
+    frame_info_msg.lost_packet = pFrameInfo->nLostPacket;
+    
+    frame_info_pub_->publish(frame_info_msg);
+  }
+  
+  // Skip image processing if no image subscribers
+  if (!has_image_subscribers) {
     return;
   }
   
@@ -634,7 +701,7 @@ void HkLineCameraNode::processImage(unsigned char *pData, MV_FRAME_OUT_INFO_EX* 
     
     // Create ROS2 image message
     sensor_msgs::msg::Image img_msg;
-    img_msg.header.stamp = this->now();
+    img_msg.header.stamp = ros_stamp;  // Use same timestamp as frame_info for synchronization
     img_msg.header.frame_id = frame_id_;
     img_msg.width = image.cols;
     img_msg.height = image.rows;

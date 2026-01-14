@@ -8,6 +8,7 @@
 #include <opencv2/opencv.hpp>
 
 #include "MvCameraControl.h"
+#include "hk_line_camera/msg/frame_info.hpp"
 #include <memory>
 #include <string>
 #include <thread>
@@ -51,6 +52,7 @@ private:
   
   // ROS2 publishers
   rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr image_pub_;
+  rclcpp::Publisher<hk_line_camera::msg::FrameInfo>::SharedPtr frame_info_pub_;
   
   // Parameters
   // Frame Trigger parameters (FrameBurstStart - 帧触发)
@@ -87,6 +89,9 @@ private:
   int camera_index_;
   std::string camera_ip_;  // IP address for GigE camera (if specified, overrides camera_index)
   std::string frame_id_;
+  
+  // Frame info publishing option
+  bool publish_frame_info_;
 };
 
 #endif // HK_LINE_CAMERA_NODE_HPP
