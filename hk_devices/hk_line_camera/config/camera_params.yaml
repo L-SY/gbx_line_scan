@@ -65,3 +65,4 @@ hk_line_camera_node:
     # Crop left/right edges before publishing
     crop_left: 0.0                # Percentage to crop from left
     crop_right: 0.0               # Percentage to crop from right
+    publish_debug_image: false    # If true, publish debug image with red crop lines

@@ -53,6 +53,7 @@ private:
   // ROS2 publishers
   rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr image_pub_;
   rclcpp::Publisher<hk_line_camera::msg::FrameInfo>::SharedPtr frame_info_pub_;
+  rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr debug_image_pub_;
   
   // Parameter callback handle
   rclcpp::node_interfaces::OnSetParametersCallbackHandle::SharedPtr param_callback_handle_;
@@ -99,6 +100,9 @@ private:
   
   // Frame info publishing option
   bool publish_frame_info_;
+  
+  // Debug image publishing option
+  bool publish_debug_image_;
 };
 
 #endif // HK_LINE_CAMERA_NODE_HPP

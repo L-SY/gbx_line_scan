@@ -45,6 +45,7 @@ HkLineCameraNode::HkLineCameraNode()
   // Cropping parameters (percentage 0.0-1.0)
   this->declare_parameter<double>("crop_left", 0.0);
   this->declare_parameter<double>("crop_right", 0.0);
+  this->declare_parameter<bool>("publish_debug_image", false);
   
   // Camera selection
   this->declare_parameter<int>("camera_index", 0);
@@ -88,6 +89,7 @@ HkLineCameraNode::HkLineCameraNode()
   // Get cropping parameters
   crop_left_ = this->get_parameter("crop_left").as_double();
   crop_right_ = this->get_parameter("crop_right").as_double();
+  publish_debug_image_ = this->get_parameter("publish_debug_image").as_bool();
   
   camera_index_ = this->get_parameter("camera_index").as_int();
   camera_ip_ = this->get_parameter("camera_ip").as_string();
@@ -107,6 +109,13 @@ HkLineCameraNode::HkLineCameraNode()
     RCLCPP_INFO(this->get_logger(), "Frame info publisher initialized on topic: %s", frame_info_topic.c_str());
   }
   
+  // Create debug image publisher if enabled
+  if (publish_debug_image_) {
+    std::string debug_topic = image_topic + "_debug";
+    debug_image_pub_ = this->create_publisher<sensor_msgs::msg::Image>(debug_topic, 10);
+    RCLCPP_INFO(this->get_logger(), "Debug image publisher initialized on topic: %s", debug_topic.c_str());
+  }
+  
   RCLCPP_INFO(this->get_logger(), "Initializing Hikvision line scan camera...");
   
   if (initializeCamera()) {
@@ -119,6 +128,9 @@ HkLineCameraNode::HkLineCameraNode()
     }
     if (crop_left_ > 0.0 || crop_right_ > 0.0) {
       RCLCPP_INFO(this->get_logger(), "Image crop: left=%.1f%%, right=%.1f%%", crop_left_ * 100, crop_right_ * 100);
+    }
+    if (publish_debug_image_) {
+      RCLCPP_INFO(this->get_logger(), "Debug image publishing enabled");
     }
     
     // Register parameter callback for dynamic reconfigure
@@ -145,6 +157,17 @@ HkLineCameraNode::HkLineCameraNode()
               result.successful = false;
               result.reason = "crop_right must be in [0, 1) and crop_left + crop_right < 1";
             }
+          } else if (param.get_name() == "publish_debug_image") {
+            bool val = param.as_bool();
+            publish_debug_image_ = val;
+            if (val && !debug_image_pub_) {
+              // Create publisher if it doesn't exist
+              std::string image_topic = this->get_parameter("image_topic").as_string();
+              std::string debug_topic = image_topic + "_debug";
+              debug_image_pub_ = this->create_publisher<sensor_msgs::msg::Image>(debug_topic, 10);
+              RCLCPP_INFO(this->get_logger(), "Debug image publisher created on topic: %s", debug_topic.c_str());
+            }
+            RCLCPP_INFO(this->get_logger(), "Updated publish_debug_image: %s", val ? "true" : "false");
           }
         }
         return result;
@@ -739,16 +762,46 @@ void HkLineCameraNode::processImage(unsigned char *pData, MV_FRAME_OUT_INFO_EX* 
         break;
     }
     
+    // Calculate crop region for debug image
+    int img_width = image.cols;
+    int img_height = image.rows;
+    int crop_x = static_cast<int>(crop_left_ * img_width);
+    int crop_w = img_width - static_cast<int>((crop_left_ + crop_right_) * img_width);
+    
+    // Ensure valid crop region
+    crop_x = std::max(0, std::min(crop_x, img_width - 1));
+    crop_w = std::max(1, std::min(crop_w, img_width - crop_x));
+    
+    // Publish debug image with red crop lines (if enabled)
+    if (publish_debug_image_ && debug_image_pub_) {
+      cv::Mat debug_image;
+      // Convert to color if grayscale
+      if (image.channels() == 1) {
+        cv::cvtColor(image, debug_image, cv::COLOR_GRAY2BGR);
+      } else {
+        debug_image = image.clone();
+      }
+      
+      // Draw red crop lines
+      cv::Scalar red(0, 0, 255);  // BGR format
+      int line_thickness = 2;
+      
+      // Left line
+      cv::line(debug_image, cv::Point(crop_x, 0), cv::Point(crop_x, img_height), red, line_thickness);
+      // Right line
+      cv::line(debug_image, cv::Point(crop_x + crop_w, 0), cv::Point(crop_x + crop_w, img_height), red, line_thickness);
+      
+      // Publish debug image
+      cv_bridge::CvImage debug_cv_image;
+      debug_cv_image.header.stamp = ros_stamp;
+      debug_cv_image.header.frame_id = frame_id_;
+      debug_cv_image.encoding = sensor_msgs::image_encodings::BGR8;
+      debug_cv_image.image = debug_image;
+      debug_image_pub_->publish(*(debug_cv_image.toImageMsg()));
+    }
+    
     // Apply left/right cropping if configured
     if (crop_left_ > 0.0 || crop_right_ > 0.0) {
-      int img_width = image.cols;
-      int crop_x = static_cast<int>(crop_left_ * img_width);
-      int crop_w = img_width - static_cast<int>((crop_left_ + crop_right_) * img_width);
-      
-      // Ensure valid crop region
-      crop_x = std::max(0, std::min(crop_x, img_width - 1));
-      crop_w = std::max(1, std::min(crop_w, img_width - crop_x));
-      
       cv::Rect crop_roi(crop_x, 0, crop_w, image.rows);
       image = image(crop_roi).clone();
     }
