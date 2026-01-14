@@ -117,6 +117,12 @@ from rclpy.executors import MultiThreadedExecutor
 from std_msgs.msg import Float64, Bool, Int32, String, Float32
 from sensor_msgs.msg import Image
 from std_srvs.srv import Trigger
+try:
+    from hk_line_camera.msg import FrameInfo
+    FRAME_INFO_AVAILABLE = True
+except ImportError:
+    FRAME_INFO_AVAILABLE = False
+    FrameInfo = None
 
 # cv_bridge will be imported lazily to avoid NumPy 2.x compatibility issues
 CV_BRIDGE_AVAILABLE = False
@@ -219,6 +225,10 @@ class RosSignalBridge(QObject):
     # Image signals
     front_image_updated = pyqtSignal(object)
     rear_image_updated = pyqtSignal(object)
+    
+    # Frame info signals
+    front_frame_info_updated = pyqtSignal()
+    rear_frame_info_updated = pyqtSignal()
 
 
 # ============================================================================
@@ -243,6 +253,7 @@ class WorkflowNode(Node):
         self._setup_light_interfaces()
         self._setup_image_interfaces()
         self._setup_services()
+        self._setup_frame_info_interfaces()
         
         self.get_logger().info('Workflow GUI Node initialized')
     
@@ -368,6 +379,35 @@ class WorkflowNode(Node):
             Trigger, '/camera_front/image_stitching_front/reset_stitching')
         self.rear_reset_client = self.create_client(
             Trigger, '/camera_rear/image_stitching_rear/reset_stitching')
+    
+    def _setup_frame_info_interfaces(self):
+        """Setup frame info subscribers"""
+        if not FRAME_INFO_AVAILABLE:
+            self.get_logger().warn('FrameInfo message not available, auto-save feature disabled')
+            self.front_frame_info_sub = None
+            self.rear_frame_info_sub = None
+            return
+        
+        try:
+            self.front_frame_info_sub = self.create_subscription(
+                FrameInfo, '/camera_front/frame_info',
+                self._front_frame_info_callback, 10)
+            self.rear_frame_info_sub = self.create_subscription(
+                FrameInfo, '/camera_rear/frame_info',
+                self._rear_frame_info_callback, 10)
+            self.get_logger().info('Frame info subscribers initialized')
+        except Exception as e:
+            self.get_logger().error(f'Failed to setup frame info subscribers: {e}')
+            self.front_frame_info_sub = None
+            self.rear_frame_info_sub = None
+    
+    def _front_frame_info_callback(self, msg: FrameInfo):
+        """Callback for front camera frame info"""
+        self.signal_bridge.front_frame_info_updated.emit()
+    
+    def _rear_frame_info_callback(self, msg: FrameInfo):
+        """Callback for rear camera frame info"""
+        self.signal_bridge.rear_frame_info_updated.emit()
     
     # Motor callbacks
     def _front_velocity_callback(self, msg: Float64):
@@ -1058,10 +1098,10 @@ class ImageDisplayPanel(QGroupBox):
         if directory:
             self.save_path_edit.setText(directory)
     
-    def _on_save_clicked(self):
-        """Save current image to file"""
+    def _save_image_internal(self) -> bool:
+        """Internal method to save current image, returns True if successful"""
         if self._current_image is None:
-            return
+            return False
         
         import os
         from datetime import datetime
@@ -1096,8 +1136,18 @@ class ImageDisplayPanel(QGroupBox):
             
             # Keep directory path in input (don't show filename)
             self.save_path_edit.setText(input_path)
+            return True
         except Exception as e:
             self.save_count_label.setText(f"Save failed: {str(e)[:20]}")
+            return False
+    
+    def _on_save_clicked(self):
+        """Save current image to file (UI button handler)"""
+        self._save_image_internal()
+    
+    def save_current_image(self) -> bool:
+        """Save current image programmatically, returns True if successful"""
+        return self._save_image_internal()
 
 
 # ============================================================================
@@ -1115,6 +1165,17 @@ class WorkflowGUI(QMainWindow):
         self._rear_motor_enabled = False
         self._light1_enabled = False
         self._light2_enabled = False
+        
+        # Auto-save workflow state
+        self._auto_save_enabled = False
+        self._auto_save_processing = False  # Flag to prevent duplicate triggers
+        self._front_last_frame_time = None
+        self._rear_last_frame_time = None
+        self._front_has_received_frame = False
+        self._rear_has_received_frame = False
+        self._auto_save_timer = QTimer()
+        self._auto_save_timer.timeout.connect(self._check_auto_save_condition)
+        self._auto_save_timer.setInterval(200)  # Check every 200ms
         
         self._setup_ui()
         self._connect_signals()
@@ -1429,6 +1490,38 @@ class WorkflowGUI(QMainWindow):
         image_group = QGroupBox("Image Display")
         image_layout = QVBoxLayout(image_group)
         
+        # Auto-save workflow control
+        auto_save_layout = QHBoxLayout()
+        self.auto_save_checkbox = QPushButton("Auto-Save: OFF")
+        self.auto_save_checkbox.setCheckable(True)
+        self.auto_save_checkbox.setStyleSheet("""
+            QPushButton {
+                background-color: #606060;
+                color: #ffffff;
+                border: 1px solid #404040;
+                padding: 8px 16px;
+                border-radius: 4px;
+                font-weight: bold;
+            }
+            QPushButton:checked {
+                background-color: #008000;
+                color: #ffffff;
+            }
+            QPushButton:hover {
+                background-color: #707070;
+            }
+            QPushButton:checked:hover {
+                background-color: #009000;
+            }
+        """)
+        self.auto_save_checkbox.clicked.connect(self._on_auto_save_toggled)
+        auto_save_layout.addWidget(self.auto_save_checkbox)
+        auto_save_layout.addStretch()
+        self.auto_save_status_label = QLabel("Waiting for object...")
+        self.auto_save_status_label.setStyleSheet("color: #606060; font-weight: bold;")
+        auto_save_layout.addWidget(self.auto_save_status_label)
+        image_layout.addLayout(auto_save_layout)
+        
         # Image panels in vertical splitter
         image_splitter = QSplitter(Qt.Vertical)
         
@@ -1526,6 +1619,11 @@ class WorkflowGUI(QMainWindow):
         
         self.signal_bridge.front_image_updated.connect(self.front_image_panel.update_image)
         self.signal_bridge.rear_image_updated.connect(self.rear_image_panel.update_image)
+        
+        # Frame info signals for auto-save
+        if FRAME_INFO_AVAILABLE:
+            self.signal_bridge.front_frame_info_updated.connect(self._on_front_frame_info_received)
+            self.signal_bridge.rear_frame_info_updated.connect(self._on_rear_frame_info_received)
     
     # Motor control handlers
     def _on_front_motor_enable(self):
@@ -1681,8 +1779,149 @@ class WorkflowGUI(QMainWindow):
         if not self.ros_node.reset_rear_stitching(callback):
             self.status_label.setText("Rear camera reset service unavailable")
     
+    # Auto-save workflow handlers
+    def _on_auto_save_toggled(self, checked):
+        """Handle auto-save checkbox toggle"""
+        self._auto_save_enabled = checked
+        if checked:
+            self.auto_save_checkbox.setText("Auto-Save: ON")
+            self.auto_save_status_label.setText("Waiting for object...")
+            self._auto_save_timer.start()
+            # Reset state
+            self._front_last_frame_time = None
+            self._rear_last_frame_time = None
+            self._front_has_received_frame = False
+            self._rear_has_received_frame = False
+            self.status_label.setText("Auto-save enabled - waiting for object")
+        else:
+            self.auto_save_checkbox.setText("Auto-Save: OFF")
+            self.auto_save_status_label.setText("Disabled")
+            self._auto_save_timer.stop()
+            self.status_label.setText("Auto-save disabled")
+    
+    def _on_front_frame_info_received(self):
+        """Handle front camera frame info received"""
+        if not self._auto_save_enabled:
+            return
+        import time
+        self._front_last_frame_time = time.time()
+        self._front_has_received_frame = True
+        self.auto_save_status_label.setText("Capturing...")
+    
+    def _on_rear_frame_info_received(self):
+        """Handle rear camera frame info received"""
+        if not self._auto_save_enabled:
+            return
+        import time
+        self._rear_last_frame_time = time.time()
+        self._rear_has_received_frame = True
+        self.auto_save_status_label.setText("Capturing...")
+    
+    def _check_auto_save_condition(self):
+        """Check if auto-save condition is met (1 second timeout)"""
+        if not self._auto_save_enabled or self._auto_save_processing:
+            return
+        
+        import time
+        current_time = time.time()
+        timeout = 1.0  # 1 second timeout
+        
+        # Check if cameras have stopped (no frame info for 1 second)
+        # Need at least one camera to have received frames
+        has_any_received = self._front_has_received_frame or self._rear_has_received_frame
+        
+        if not has_any_received:
+            return  # Haven't received any frames yet, keep waiting
+        
+        # Check if both cameras that have received frames are now stopped
+        front_stopped = True
+        rear_stopped = True
+        
+        if self._front_has_received_frame:
+            if self._front_last_frame_time is not None:
+                if current_time - self._front_last_frame_time <= timeout:
+                    front_stopped = False  # Still receiving frames
+        
+        if self._rear_has_received_frame:
+            if self._rear_last_frame_time is not None:
+                if current_time - self._rear_last_frame_time <= timeout:
+                    rear_stopped = False  # Still receiving frames
+        
+        # If all cameras that have received frames are now stopped, trigger save and reset
+        if front_stopped and rear_stopped:
+            self._trigger_auto_save_and_reset()
+    
+    def _trigger_auto_save_and_reset(self):
+        """Trigger auto-save and reset cameras"""
+        if not self._auto_save_enabled or self._auto_save_processing:
+            return
+        
+        # Prevent multiple triggers
+        self._auto_save_processing = True
+        self.auto_save_status_label.setText("Saving and resetting...")
+        
+        # Save images
+        front_saved = self.front_image_panel.save_current_image()
+        rear_saved = self.rear_image_panel.save_current_image()
+        
+        saved_count = sum([front_saved, rear_saved])
+        if saved_count > 0:
+            self.status_label.setText(f"Auto-saved {saved_count} image(s)")
+        
+        # Reset cameras
+        self._auto_reset_cameras()
+        
+        # Reset state and re-enable
+        import time
+        self._front_last_frame_time = None
+        self._rear_last_frame_time = None
+        self._front_has_received_frame = False
+        self._rear_has_received_frame = False
+        
+        # Re-enable after a short delay
+        QTimer.singleShot(500, lambda: self._re_enable_auto_save())
+    
+    def _auto_reset_cameras(self):
+        """Reset both cameras"""
+        # Reset front camera
+        def front_callback(future):
+            try:
+                result = future.result()
+                if result.success:
+                    self.ros_node.get_logger().info("Front camera reset (auto)")
+                else:
+                    self.ros_node.get_logger().warn(f"Front camera reset failed: {result.message}")
+            except Exception as e:
+                self.ros_node.get_logger().error(f"Front camera reset error: {e}")
+        
+        # Reset rear camera
+        def rear_callback(future):
+            try:
+                result = future.result()
+                if result.success:
+                    self.ros_node.get_logger().info("Rear camera reset (auto)")
+                else:
+                    self.ros_node.get_logger().warn(f"Rear camera reset failed: {result.message}")
+            except Exception as e:
+                self.ros_node.get_logger().error(f"Rear camera reset error: {e}")
+        
+        self.ros_node.reset_front_stitching(front_callback)
+        self.ros_node.reset_rear_stitching(rear_callback)
+        
+        # Clear displayed images
+        self.front_image_panel.clear_image()
+        self.rear_image_panel.clear_image()
+    
+    def _re_enable_auto_save(self):
+        """Re-enable auto-save after reset"""
+        if self.auto_save_checkbox.isChecked():
+            self._auto_save_processing = False
+            self.auto_save_status_label.setText("Waiting for object...")
+            self.status_label.setText("Auto-save ready - waiting for next object")
+    
     def closeEvent(self, event):
         """Handle window close - emergency stop all"""
+        self._auto_save_timer.stop()
         self._on_emergency_stop()
         event.accept()
 
