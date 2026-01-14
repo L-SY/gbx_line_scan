@@ -2,7 +2,7 @@
 Type=Application
 Name=Workflow GUI
 Comment=启动Workflow GUI应用程序
-Exec=bash -c 'SCRIPT="$(find "$HOME" -path "*/auto_start/start_workflow_gui.sh" -type f 2>/dev/null | head -1)"; [ -n "$SCRIPT" ] && "$SCRIPT"'
+Exec=bash -c 'SCRIPT="$(find "$HOME" -path "*/auto_start/startup.sh" -type f 2>/dev/null | head -1)"; [ -n "$SCRIPT" ] && "$SCRIPT"'
 Icon=utilities-terminal
 Terminal=false
 Categories=Utility;Application;

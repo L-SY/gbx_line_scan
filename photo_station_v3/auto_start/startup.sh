@@ -1,25 +1,22 @@
 #!/bin/bash
-# 开机自启动脚本
-# 此脚本会在系统启动时自动执行
+# 桌面自启动脚本 - 启动 workflow_gui
 
-# 记录日志
-LOG_FILE="/var/log/startup_script.log"
-echo "[$(date)] 启动脚本开始执行" >> "$LOG_FILE"
+# 设置日志文件
+LOG_FILE="$HOME/.workflow_gui.log"
+echo "[$(date)] 开始启动workflow_gui" >> "$LOG_FILE"
 
-# 在这里添加您需要在开机时执行的命令
-# 示例：修改文件权限
-sudo chmod 777 /dev/ttyACM0
+# 等待桌面环境启动
+sleep 3
 
-# 示例：启动某个服务
-# systemctl start your-service
+# 修改设备权限
+sudo chmod 777 /dev/ttyACM0 >> "$LOG_FILE" 2>&1
 
-# 示例：设置环境变量
-# export SOME_VAR="value"
+# Source .bashrc 加载所有环境配置（包括ROS）
+if [ -f "$HOME/.bashrc" ]; then
+    source "$HOME/.bashrc" >> "$LOG_FILE" 2>&1
+fi
 
-# 示例：挂载文件系统
-# mount /dev/sdb1 /mnt/data
+# 后台运行ros2 launch，输出重定向到日志文件
+nohup ros2 launch workflow_gui workflow_gui.launch.py >> "$LOG_FILE" 2>&1 &
 
-# 添加您的自定义命令在这里
-# ...
-
-echo "[$(date)] 启动脚本执行完成" >> "$LOG_FILE"
+echo "[$(date)] workflow_gui已启动 (PID: $!)" >> "$LOG_FILE"
