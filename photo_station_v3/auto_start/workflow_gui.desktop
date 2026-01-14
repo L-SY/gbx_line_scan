@@ -2,7 +2,7 @@
 Type=Application
 Name=Workflow GUI
 Comment=启动Workflow GUI应用程序
-Exec=__SCRIPT_PATH__/startup.sh
+Exec=/bin/bash __SCRIPT_PATH__/startup.sh
 Icon=utilities-terminal
 Terminal=false
 Categories=Utility;Application;
