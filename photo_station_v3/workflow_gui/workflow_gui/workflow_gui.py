@@ -1098,8 +1098,12 @@ class ImageDisplayPanel(QGroupBox):
         if directory:
             self.save_path_edit.setText(directory)
     
-    def _save_image_internal(self) -> bool:
-        """Internal method to save current image, returns True if successful"""
+    def _save_image_internal(self, subfolder: str = None) -> bool:
+        """Internal method to save current image, returns True if successful
+        
+        Args:
+            subfolder: Optional subfolder name (e.g., 'front' or 'rear') for organized storage
+        """
         if self._current_image is None:
             return False
         
@@ -1120,15 +1124,27 @@ class ImageDisplayPanel(QGroupBox):
             else:
                 input_path = self._default_save_path
         
+        # Create date folder structure if subfolder is specified
+        if subfolder:
+            # Create date folder (YYYYMMDD format)
+            date_str = datetime.now().strftime('%Y%m%d')
+            date_folder = os.path.join(input_path, date_str)
+            
+            # Create subfolder (front/rear) inside date folder
+            final_path = os.path.join(date_folder, subfolder)
+        else:
+            # No subfolder, save directly to input_path
+            final_path = input_path
+        
         # Generate filename with current time (精确到秒)
         time_str = datetime.now().strftime('%Y%m%d_%H%M%S')
         time_based_filename = f"image_{time_str}.png"
-        filename = os.path.join(input_path, time_based_filename)
+        filename = os.path.join(final_path, time_based_filename)
         
         try:
             # Ensure directory exists
-            if not os.path.exists(input_path):
-                os.makedirs(input_path, exist_ok=True)
+            if not os.path.exists(final_path):
+                os.makedirs(final_path, exist_ok=True)
             
             cv2.imwrite(filename, self._current_image)
             self._save_count += 1
@@ -1145,9 +1161,13 @@ class ImageDisplayPanel(QGroupBox):
         """Save current image to file (UI button handler)"""
         self._save_image_internal()
     
-    def save_current_image(self) -> bool:
-        """Save current image programmatically, returns True if successful"""
-        return self._save_image_internal()
+    def save_current_image(self, subfolder: str = None) -> bool:
+        """Save current image programmatically, returns True if successful
+        
+        Args:
+            subfolder: Optional subfolder name (e.g., 'front' or 'rear') for organized storage
+        """
+        return self._save_image_internal(subfolder)
 
 
 # ============================================================================
@@ -1860,9 +1880,9 @@ class WorkflowGUI(QMainWindow):
         self._auto_save_processing = True
         self.auto_save_status_label.setText("Saving and resetting...")
         
-        # Save images
-        front_saved = self.front_image_panel.save_current_image()
-        rear_saved = self.rear_image_panel.save_current_image()
+        # Save images to date folder with front/rear subfolders
+        front_saved = self.front_image_panel.save_current_image(subfolder='front')
+        rear_saved = self.rear_image_panel.save_current_image(subfolder='rear')
         
         saved_count = sum([front_saved, rear_saved])
         if saved_count > 0:
