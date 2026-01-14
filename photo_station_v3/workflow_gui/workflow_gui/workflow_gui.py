@@ -1629,7 +1629,7 @@ def main():
     
     # Create and show GUI
     gui = WorkflowGUI(ros_node, signal_bridge)
-    gui.show()
+    gui.showFullScreen()
     
     # Create executor for ROS2
     executor = MultiThreadedExecutor()
