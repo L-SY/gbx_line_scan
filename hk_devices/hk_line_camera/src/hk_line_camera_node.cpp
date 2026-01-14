@@ -40,6 +40,10 @@ HkLineCameraNode::HkLineCameraNode()
   // Image control parameters
   this->declare_parameter<int>("image_height", 0);  // 0 = no limit
   
+  // Cropping parameters (percentage 0.0-1.0)
+  this->declare_parameter<double>("crop_left", 0.0);
+  this->declare_parameter<double>("crop_right", 0.0);
+  
   // Camera selection
   this->declare_parameter<int>("camera_index", 0);
   this->declare_parameter<std::string>("camera_ip", "");  // IP address for GigE camera (if specified, overrides camera_index)
@@ -79,6 +83,10 @@ HkLineCameraNode::HkLineCameraNode()
   
   image_height_ = this->get_parameter("image_height").as_int();
   
+  // Get cropping parameters
+  crop_left_ = this->get_parameter("crop_left").as_double();
+  crop_right_ = this->get_parameter("crop_right").as_double();
+  
   camera_index_ = this->get_parameter("camera_index").as_int();
   camera_ip_ = this->get_parameter("camera_ip").as_string();
   frame_id_ = this->get_parameter("frame_id").as_string();
@@ -106,6 +114,9 @@ HkLineCameraNode::HkLineCameraNode()
       RCLCPP_INFO(this->get_logger(), "Image height configured: %d pixels (set via camera SDK)", image_height_);
     } else {
       RCLCPP_INFO(this->get_logger(), "Image height: using camera default");
+    }
+    if (crop_left_ > 0.0 || crop_right_ > 0.0) {
+      RCLCPP_INFO(this->get_logger(), "Image crop: left=%.1f%%, right=%.1f%%", crop_left_ * 100, crop_right_ * 100);
     }
   } else {
     RCLCPP_ERROR(this->get_logger(), "Failed to initialize camera");
@@ -697,7 +708,19 @@ void HkLineCameraNode::processImage(unsigned char *pData, MV_FRAME_OUT_INFO_EX* 
         break;
     }
     
-    // Note: Image height is now controlled by camera SDK, no software cropping needed
+    // Apply left/right cropping if configured
+    if (crop_left_ > 0.0 || crop_right_ > 0.0) {
+      int img_width = image.cols;
+      int crop_x = static_cast<int>(crop_left_ * img_width);
+      int crop_w = img_width - static_cast<int>((crop_left_ + crop_right_) * img_width);
+      
+      // Ensure valid crop region
+      crop_x = std::max(0, std::min(crop_x, img_width - 1));
+      crop_w = std::max(1, std::min(crop_w, img_width - crop_x));
+      
+      cv::Rect crop_roi(crop_x, 0, crop_w, image.rows);
+      image = image(crop_roi).clone();
+    }
     
     // Create ROS2 image message
     sensor_msgs::msg::Image img_msg;

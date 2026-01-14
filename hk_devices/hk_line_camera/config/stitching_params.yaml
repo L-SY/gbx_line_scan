@@ -19,8 +19,6 @@ image_stitching_node:
     publish_periodically: false        # If true, publish at fixed rate instead of on each image
     publish_rate: 1.0                  # Publishing rate in Hz (if publish_periodically is true)
     
-    # Cropping options (percentage 0.0-1.0)
-    crop_left: 0.0                     # Percentage to crop from left
-    crop_right: 0.0                    # Percentage to crop from right
-    publish_debug_image: false         # If true, publish debug image with red crop lines
+    # Debug options
+    publish_debug_image: false         # If true, publish color debug image for visualization
 

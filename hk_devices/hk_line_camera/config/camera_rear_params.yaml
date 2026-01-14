@@ -56,3 +56,8 @@
     # Image height in pixels (0 = use camera default, set via camera SDK before starting capture)
     # For line scan cameras, this controls the frame height captured by the camera
     image_height: 8
+    
+    # Cropping parameters (percentage 0.0-1.0)
+    # Crop left/right edges before publishing
+    crop_left: 0.0                # Percentage to crop from left
+    crop_right: 0.0               # Percentage to crop from right

@@ -85,6 +85,10 @@ private:
   // Image control parameters
   int image_height_;  // Maximum image height (0 = no limit)
   
+  // Cropping parameters (percentage 0.0-1.0)
+  double crop_left_;   // Percentage to crop from left
+  double crop_right_;  // Percentage to crop from right
+  
   // Camera selection
   int camera_index_;
   std::string camera_ip_;  // IP address for GigE camera (if specified, overrides camera_index)

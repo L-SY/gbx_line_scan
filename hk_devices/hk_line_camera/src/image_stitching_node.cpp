@@ -20,9 +20,7 @@ ImageStitchingNode::ImageStitchingNode()
   this->declare_parameter<bool>("reset_on_max_height", true);
   this->declare_parameter<bool>("reset_on_max_count", true);
   
-  // Cropping parameters (percentage 0.0-1.0)
-  this->declare_parameter<double>("crop_left", 0.0);
-  this->declare_parameter<double>("crop_right", 0.0);
+  // Debug option
   this->declare_parameter<bool>("publish_debug_image", false);
   
   // Get parameters
@@ -36,9 +34,7 @@ ImageStitchingNode::ImageStitchingNode()
   reset_on_max_height_ = this->get_parameter("reset_on_max_height").as_bool();
   reset_on_max_count_ = this->get_parameter("reset_on_max_count").as_bool();
   
-  // Get cropping parameters
-  crop_left_ = this->get_parameter("crop_left").as_double();
-  crop_right_ = this->get_parameter("crop_right").as_double();
+  // Get debug option
   publish_debug_image_ = this->get_parameter("publish_debug_image").as_bool();
   
   stitch_count_ = 0;
@@ -56,11 +52,6 @@ ImageStitchingNode::ImageStitchingNode()
   // Create publishers
   stitched_image_pub_ = this->create_publisher<sensor_msgs::msg::Image>(output_topic_, 10);
   RCLCPP_INFO(this->get_logger(), "Created publisher on topic: %s", stitched_image_pub_->get_topic_name());
-  
-  // Create cropped image publisher
-  std::string cropped_topic = output_topic_ + "_cropped";
-  cropped_image_pub_ = this->create_publisher<sensor_msgs::msg::Image>(cropped_topic, 10);
-  RCLCPP_INFO(this->get_logger(), "Created cropped image publisher on topic: %s", cropped_image_pub_->get_topic_name());
   
   // Create debug image publisher
   std::string debug_topic = output_topic_ + "_debug";
@@ -90,8 +81,6 @@ ImageStitchingNode::ImageStitchingNode()
   RCLCPP_INFO(this->get_logger(), "  Max height: %d (0 = unlimited)", max_height_);
   RCLCPP_INFO(this->get_logger(), "  Max stitch count: %d (0 = unlimited)", max_stitch_count_);
   RCLCPP_INFO(this->get_logger(), "  Publish periodically: %s", publish_periodically_ ? "true" : "false");
-  RCLCPP_INFO(this->get_logger(), "  Crop: left=%.1f%%, right=%.1f%%", 
-              crop_left_ * 100, crop_right_ * 100);
   RCLCPP_INFO(this->get_logger(), "  Publish debug image: %s", publish_debug_image_ ? "true" : "false");
   
   // Print actual topic names after creation
@@ -321,42 +310,16 @@ void ImageStitchingNode::publishStitchedImage()
                 stitched_image_pub_->get_topic_name(),
                 stitched_image_.cols, stitched_image_.rows, stitch_count_, subscriber_count);
     
-    // Calculate crop region in pixels (left/right only)
-    int img_width = stitched_image_.cols;
-    int img_height = stitched_image_.rows;
-    int crop_x = static_cast<int>(crop_left_ * img_width);
-    int crop_y = 0;
-    int crop_w = img_width - static_cast<int>((crop_left_ + crop_right_) * img_width);
-    int crop_h = img_height;
-    
-    // Ensure valid crop region
-    crop_x = std::max(0, std::min(crop_x, img_width - 1));
-    crop_w = std::max(1, std::min(crop_w, img_width - crop_x));
-    
-    // Publish debug image with red crop lines (if enabled)
+    // Publish debug image (color version for visualization)
     if (publish_debug_image_) {
       cv::Mat debug_image;
-      // Convert to color if grayscale
+      // Convert to color if grayscale for better visualization
       if (stitched_image_.channels() == 1) {
         cv::cvtColor(stitched_image_, debug_image, cv::COLOR_GRAY2BGR);
       } else {
         debug_image = stitched_image_.clone();
       }
       
-      // Draw red crop lines
-      cv::Scalar red(0, 0, 255);  // BGR format
-      int line_thickness = 2;
-      
-      // Top line
-      cv::line(debug_image, cv::Point(crop_x, crop_y), cv::Point(crop_x + crop_w, crop_y), red, line_thickness);
-      // Bottom line
-      cv::line(debug_image, cv::Point(crop_x, crop_y + crop_h), cv::Point(crop_x + crop_w, crop_y + crop_h), red, line_thickness);
-      // Left line
-      cv::line(debug_image, cv::Point(crop_x, crop_y), cv::Point(crop_x, crop_y + crop_h), red, line_thickness);
-      // Right line
-      cv::line(debug_image, cv::Point(crop_x + crop_w, crop_y), cv::Point(crop_x + crop_w, crop_y + crop_h), red, line_thickness);
-      
-      // Publish debug image
       cv_bridge::CvImage debug_cv_image;
       debug_cv_image.header.stamp = this->now();
       debug_cv_image.header.frame_id = frame_id_;
@@ -364,23 +327,8 @@ void ImageStitchingNode::publishStitchedImage()
       debug_cv_image.image = debug_image;
       debug_image_pub_->publish(*(debug_cv_image.toImageMsg()));
       
-      RCLCPP_DEBUG(this->get_logger(), "Published debug image with crop lines");
+      RCLCPP_DEBUG(this->get_logger(), "Published debug image");
     }
-    
-    // Publish cropped image
-    cv::Rect crop_roi(crop_x, crop_y, crop_w, crop_h);
-    cv::Mat cropped_image = stitched_image_(crop_roi).clone();
-    
-    cv_bridge::CvImage cropped_cv_image;
-    cropped_cv_image.header.stamp = this->now();
-    cropped_cv_image.header.frame_id = frame_id_;
-    cropped_cv_image.encoding = encoding;
-    cropped_cv_image.image = cropped_image;
-    cropped_image_pub_->publish(*(cropped_cv_image.toImageMsg()));
-    
-    RCLCPP_INFO(this->get_logger(), 
-                "Published cropped image: %dx%d (crop region: x=%d, y=%d, w=%d, h=%d)", 
-                cropped_image.cols, cropped_image.rows, crop_x, crop_y, crop_w, crop_h);
     
   } catch (const std::exception& e) {
     RCLCPP_ERROR(this->get_logger(), "Error publishing stitched image: %s", e.what());
