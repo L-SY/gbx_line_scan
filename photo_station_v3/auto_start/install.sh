@@ -18,7 +18,9 @@ fi
 
 chmod +x "${SCRIPT_DIR}/startup.sh"
 mkdir -p "$AUTOSTART_DIR"
-cp "$DESKTOP_FILE" "$TARGET_FILE"
+
+# 复制 desktop 文件并替换 Exec 为绝对路径
+sed "s|__SCRIPT_PATH__|${SCRIPT_DIR}|g" "$DESKTOP_FILE" > "$TARGET_FILE"
 
 echo "✓ 桌面自启动已安装"
 echo ""
