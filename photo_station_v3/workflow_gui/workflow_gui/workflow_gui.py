@@ -74,7 +74,7 @@ import threading
 import subprocess
 import signal
 import csv
-from typing import Optional, List
+from typing import Optional, List, TYPE_CHECKING
 from pathlib import Path
 
 # Import numpy first to ensure proper initialization
@@ -172,7 +172,7 @@ def try_import_cv_bridge():
 # Image Cropping Functions (Integrated from crop_image.py)
 # ============================================================================
 def generate_crop_diagram(
-    img: Image.Image,
+    img,  # PIL.Image.Image type, but use Any to avoid import issues
     crop_size_px: int,
     actual_rows: int,
     actual_cols: int,
