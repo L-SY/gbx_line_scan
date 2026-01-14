@@ -1166,24 +1166,39 @@ class ImageDisplayPanel(QGroupBox):
             # Auto-crop if requested
             if auto_crop and subfolder:
                 try:
-                    # Calculate path to cropping module using relative path
-                    # workflow_gui.py is in: workflow_gui/workflow_gui/
-                    # crop_image.py is in: workflow_gui/cropping/
+                    # Calculate path to cropping module using absolute path from __file__
+                    # This works regardless of current working directory
+                    # workflow_gui.py is in: .../workflow_gui/workflow_gui/workflow_gui.py
+                    # crop_image.py is in: .../workflow_gui/cropping/crop_image.py
+                    
+                    # Get absolute path of current file
                     current_file = os.path.abspath(__file__)
+                    # Get directory containing workflow_gui.py: .../workflow_gui/workflow_gui/
                     current_file_dir = os.path.dirname(current_file)
-                    # Go up one level: workflow_gui/workflow_gui/ -> workflow_gui/
+                    # Go up one level: .../workflow_gui/workflow_gui/ -> .../workflow_gui/
                     workflow_gui_base_dir = os.path.dirname(current_file_dir)
-                    # Join with cropping directory
+                    # Join with cropping directory: .../workflow_gui/cropping/
                     cropping_dir = os.path.join(workflow_gui_base_dir, 'cropping')
+                    # Full path to crop script: .../workflow_gui/cropping/crop_image.py
                     crop_script_path = os.path.join(cropping_dir, 'crop_image.py')
                     
+                    # Normalize paths to handle any symlinks or relative components
+                    cropping_dir = os.path.normpath(cropping_dir)
+                    crop_script_path = os.path.normpath(crop_script_path)
+                    
                     # Debug: print paths for troubleshooting
-                    print(f"[Auto-crop] Current file: {current_file}")
+                    print(f"[Auto-crop] Current working directory: {os.getcwd()}")
+                    print(f"[Auto-crop] Current file (__file__): {__file__}")
+                    print(f"[Auto-crop] Current file (absolute): {current_file}")
                     print(f"[Auto-crop] Current file dir: {current_file_dir}")
                     print(f"[Auto-crop] Workflow GUI base dir: {workflow_gui_base_dir}")
                     print(f"[Auto-crop] Cropping dir: {cropping_dir}")
                     print(f"[Auto-crop] Crop script: {crop_script_path}")
                     print(f"[Auto-crop] Script exists: {os.path.exists(crop_script_path)}")
+                    if os.path.exists(cropping_dir):
+                        print(f"[Auto-crop] Cropping dir contents: {os.listdir(cropping_dir)}")
+                    else:
+                        print(f"[Auto-crop] ERROR: Cropping directory does not exist!")
                     
                     # Try multiple methods to import
                     crop_image_grid = None
