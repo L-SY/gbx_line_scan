@@ -1169,30 +1169,57 @@ class ImageDisplayPanel(QGroupBox):
                     # Calculate path to cropping module
                     # workflow_gui.py is in: photo_station_v3/workflow_gui/workflow_gui/
                     # crop_image.py is in: photo_station_v3/cropping/
-                    current_file_dir = os.path.dirname(os.path.abspath(__file__))
+                    current_file = os.path.abspath(__file__)
+                    current_file_dir = os.path.dirname(current_file)
                     # Go up: workflow_gui -> workflow_gui -> photo_station_v3
-                    photo_station_v3_dir = os.path.dirname(os.path.dirname(current_file_dir))
+                    workflow_gui_dir = os.path.dirname(current_file_dir)  # workflow_gui/
+                    photo_station_v3_dir = os.path.dirname(workflow_gui_dir)  # photo_station_v3/
                     cropping_dir = os.path.join(photo_station_v3_dir, 'cropping')
+                    crop_script_path = os.path.join(cropping_dir, 'crop_image.py')
                     
-                    if os.path.exists(cropping_dir):
+                    # Debug: print paths for troubleshooting
+                    print(f"[Auto-crop] Current file: {current_file}")
+                    print(f"[Auto-crop] Photo station dir: {photo_station_v3_dir}")
+                    print(f"[Auto-crop] Cropping dir: {cropping_dir}")
+                    print(f"[Auto-crop] Crop script: {crop_script_path}")
+                    print(f"[Auto-crop] Script exists: {os.path.exists(crop_script_path)}")
+                    
+                    if os.path.exists(crop_script_path):
                         # Add cropping directory to path
                         if cropping_dir not in sys.path:
                             sys.path.insert(0, cropping_dir)
                         
+                        print(f"[Auto-crop] Importing crop_image from {cropping_dir}")
                         from crop_image import crop_image_grid
+                        
+                        print(f"[Auto-crop] Applying crop to: {filename}")
+                        print(f"[Auto-crop] Output dir: {final_path}")
+                        
                         # Apply crop to the saved image
                         crop_image_grid(
                             image_path=filename,
                             cols=3,  # Default cols value
                             output_dir=final_path  # Output to same directory
                         )
-                        # Note: status_label update will be handled by caller if needed
+                        print(f"[Auto-crop] Crop completed successfully")
                     else:
-                        print(f"Warning: Cropping directory not found: {cropping_dir}")
+                        error_msg = f"Cropping script not found: {crop_script_path}"
+                        print(f"[Auto-crop] ERROR: {error_msg}")
+                        # Try to update status if possible (may not have access to status_label)
+                        try:
+                            self.save_count_label.setText(f"Saved (crop failed)")
+                        except:
+                            pass
                 except ImportError as e:
-                    print(f"Warning: Failed to import crop_image: {e}")
+                    error_msg = f"Failed to import crop_image: {e}"
+                    print(f"[Auto-crop] ERROR: {error_msg}")
+                    import traceback
+                    traceback.print_exc()
                 except Exception as e:
-                    print(f"Warning: Auto-crop failed: {e}")
+                    error_msg = f"Auto-crop failed: {e}"
+                    print(f"[Auto-crop] ERROR: {error_msg}")
+                    import traceback
+                    traceback.print_exc()
                     # Don't fail the save operation if crop fails
             
             # Keep directory path in input (don't show filename)
@@ -1939,7 +1966,7 @@ class WorkflowGUI(QMainWindow):
         
         saved_count = sum([front_saved, rear_saved])
         if saved_count > 0:
-            self.status_label.setText(f"Auto-saved {saved_count} image(s)")
+            self.status_label.setText(f"Auto-saved {saved_count} image(s) and applied crop")
         
         # Reset cameras
         self._auto_reset_cameras()
