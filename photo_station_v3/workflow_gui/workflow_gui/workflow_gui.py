@@ -1098,16 +1098,19 @@ class ImageDisplayPanel(QGroupBox):
         if directory:
             self.save_path_edit.setText(directory)
     
-    def _save_image_internal(self, subfolder: str = None) -> bool:
+    def _save_image_internal(self, subfolder: str = None, auto_crop: bool = False, timestamp: tuple = None) -> bool:
         """Internal method to save current image, returns True if successful
         
         Args:
             subfolder: Optional subfolder name (e.g., 'front' or 'rear') for organized storage
+            auto_crop: Whether to automatically apply crop_image.py after saving
+            timestamp: Optional (date_str, time_str) tuple to use for folder naming
         """
         if self._current_image is None:
             return False
         
         import os
+        import sys
         from datetime import datetime
         
         # Get directory path from input
@@ -1124,22 +1127,32 @@ class ImageDisplayPanel(QGroupBox):
             else:
                 input_path = self._default_save_path
         
-        # Create date folder structure if subfolder is specified
+        # Create date and time folder structure if subfolder is specified
         if subfolder:
+            # Use provided timestamp or generate new one
+            if timestamp:
+                date_str, time_str = timestamp
+            else:
+                date_str = datetime.now().strftime('%Y%m%d')
+                time_str = datetime.now().strftime('%H%M%S')
+            
             # Create date folder (YYYYMMDD format)
-            date_str = datetime.now().strftime('%Y%m%d')
             date_folder = os.path.join(input_path, date_str)
             
-            # Create subfolder (front/rear) inside date folder
-            final_path = os.path.join(date_folder, subfolder)
+            # Create time folder (HHMMSS format)
+            time_folder = os.path.join(date_folder, time_str)
+            
+            # Create subfolder (front/rear) inside time folder
+            final_path = os.path.join(time_folder, subfolder)
+            
+            # Filename is just "image.png"
+            filename = os.path.join(final_path, "image.png")
         else:
-            # No subfolder, save directly to input_path
+            # No subfolder, save directly to input_path with timestamp
             final_path = input_path
-        
-        # Generate filename with current time (精确到秒)
-        time_str = datetime.now().strftime('%Y%m%d_%H%M%S')
-        time_based_filename = f"image_{time_str}.png"
-        filename = os.path.join(final_path, time_based_filename)
+            time_str = datetime.now().strftime('%Y%m%d_%H%M%S')
+            time_based_filename = f"image_{time_str}.png"
+            filename = os.path.join(final_path, time_based_filename)
         
         try:
             # Ensure directory exists
@@ -1149,6 +1162,38 @@ class ImageDisplayPanel(QGroupBox):
             cv2.imwrite(filename, self._current_image)
             self._save_count += 1
             self.save_count_label.setText(f"Saved: {self._save_count}")
+            
+            # Auto-crop if requested
+            if auto_crop and subfolder:
+                try:
+                    # Calculate path to cropping module
+                    # workflow_gui.py is in: photo_station_v3/workflow_gui/workflow_gui/
+                    # crop_image.py is in: photo_station_v3/cropping/
+                    current_file_dir = os.path.dirname(os.path.abspath(__file__))
+                    # Go up: workflow_gui -> workflow_gui -> photo_station_v3
+                    photo_station_v3_dir = os.path.dirname(os.path.dirname(current_file_dir))
+                    cropping_dir = os.path.join(photo_station_v3_dir, 'cropping')
+                    
+                    if os.path.exists(cropping_dir):
+                        # Add cropping directory to path
+                        if cropping_dir not in sys.path:
+                            sys.path.insert(0, cropping_dir)
+                        
+                        from crop_image import crop_image_grid
+                        # Apply crop to the saved image
+                        crop_image_grid(
+                            image_path=filename,
+                            cols=3,  # Default cols value
+                            output_dir=final_path  # Output to same directory
+                        )
+                        # Note: status_label update will be handled by caller if needed
+                    else:
+                        print(f"Warning: Cropping directory not found: {cropping_dir}")
+                except ImportError as e:
+                    print(f"Warning: Failed to import crop_image: {e}")
+                except Exception as e:
+                    print(f"Warning: Auto-crop failed: {e}")
+                    # Don't fail the save operation if crop fails
             
             # Keep directory path in input (don't show filename)
             self.save_path_edit.setText(input_path)
@@ -1161,13 +1206,15 @@ class ImageDisplayPanel(QGroupBox):
         """Save current image to file (UI button handler)"""
         self._save_image_internal()
     
-    def save_current_image(self, subfolder: str = None) -> bool:
+    def save_current_image(self, subfolder: str = None, auto_crop: bool = True, timestamp: tuple = None) -> bool:
         """Save current image programmatically, returns True if successful
         
         Args:
             subfolder: Optional subfolder name (e.g., 'front' or 'rear') for organized storage
+            auto_crop: Whether to automatically apply crop_image.py after saving (default: True)
+            timestamp: Optional (date_str, time_str) tuple to use for folder naming
         """
-        return self._save_image_internal(subfolder)
+        return self._save_image_internal(subfolder, auto_crop, timestamp)
 
 
 # ============================================================================
@@ -1880,9 +1927,15 @@ class WorkflowGUI(QMainWindow):
         self._auto_save_processing = True
         self.auto_save_status_label.setText("Saving and resetting...")
         
-        # Save images to date folder with front/rear subfolders
-        front_saved = self.front_image_panel.save_current_image(subfolder='front')
-        rear_saved = self.rear_image_panel.save_current_image(subfolder='rear')
+        # Save images to date/time folder with front/rear subfolders
+        # Use same timestamp for both cameras (same object, different views)
+        from datetime import datetime
+        timestamp = (
+            datetime.now().strftime('%Y%m%d'),
+            datetime.now().strftime('%H%M%S')
+        )
+        front_saved = self.front_image_panel.save_current_image(subfolder='front', auto_crop=True, timestamp=timestamp)
+        rear_saved = self.rear_image_panel.save_current_image(subfolder='rear', auto_crop=True, timestamp=timestamp)
         
         saved_count = sum([front_saved, rear_saved])
         if saved_count > 0:
