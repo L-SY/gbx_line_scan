@@ -15,8 +15,7 @@
 
 from launch import LaunchDescription
 from launch_ros.actions import Node
-from launch.actions import DeclareLaunchArgument, TimerAction
-from launch.substitutions import LaunchConfiguration
+from launch.actions import TimerAction
 import os
 from ament_index_python.packages import get_package_share_directory
 
@@ -25,34 +24,11 @@ def generate_launch_description():
     # Get package share directory
     pkg_share = get_package_share_directory('hk_line_camera')
     
-    # ==================== Launch Arguments ====================
-    # Front camera config
-    front_camera_config_arg = DeclareLaunchArgument(
-        'front_camera_config',
-        default_value=os.path.join(pkg_share, 'config', 'camera_front_params.yaml'),
-        description='Path to the front camera parameters YAML file'
-    )
-    
-    # Rear camera config
-    rear_camera_config_arg = DeclareLaunchArgument(
-        'rear_camera_config',
-        default_value=os.path.join(pkg_share, 'config', 'camera_rear_params.yaml'),
-        description='Path to the rear camera parameters YAML file'
-    )
-    
-    # Front stitching config
-    front_stitching_config_arg = DeclareLaunchArgument(
-        'front_stitching_config',
-        default_value=os.path.join(pkg_share, 'config', 'stitching_front_params.yaml'),
-        description='Path to the front stitching parameters YAML file'
-    )
-    
-    # Rear stitching config
-    rear_stitching_config_arg = DeclareLaunchArgument(
-        'rear_stitching_config',
-        default_value=os.path.join(pkg_share, 'config', 'stitching_rear_params.yaml'),
-        description='Path to the rear stitching parameters YAML file'
-    )
+    # Config file paths (use direct paths to avoid TimerAction + LaunchConfiguration issues)
+    front_camera_config = os.path.join(pkg_share, 'config', 'camera_front_params.yaml')
+    rear_camera_config = os.path.join(pkg_share, 'config', 'camera_rear_params.yaml')
+    front_stitching_config = os.path.join(pkg_share, 'config', 'stitching_front_params.yaml')
+    rear_stitching_config = os.path.join(pkg_share, 'config', 'stitching_rear_params.yaml')
     
     # ==================== Front Camera Nodes ====================
     # Front camera node (启动时间: 0s)
@@ -61,7 +37,7 @@ def generate_launch_description():
         executable='hk_line_camera_node',
         name='hk_line_camera_front',
         namespace='camera_front',
-        parameters=[LaunchConfiguration('front_camera_config')],
+        parameters=[front_camera_config],
         output='screen'
     )
     
@@ -71,7 +47,7 @@ def generate_launch_description():
         executable='image_stitching_node',
         name='image_stitching_front',
         namespace='camera_front',
-        parameters=[LaunchConfiguration('front_stitching_config')],
+        parameters=[front_stitching_config],
         output='screen'
     )
     
@@ -82,7 +58,7 @@ def generate_launch_description():
         executable='hk_line_camera_node',
         name='hk_line_camera_rear',
         namespace='camera_rear',
-        parameters=[LaunchConfiguration('rear_camera_config')],
+        parameters=[rear_camera_config],
         output='screen'
     )
     
@@ -92,7 +68,7 @@ def generate_launch_description():
         executable='image_stitching_node',
         name='image_stitching_rear',
         namespace='camera_rear',
-        parameters=[LaunchConfiguration('rear_stitching_config')],
+        parameters=[rear_stitching_config],
         output='screen'
     )
     
@@ -108,11 +84,6 @@ def generate_launch_description():
     )
     
     return LaunchDescription([
-        # Launch arguments
-        front_camera_config_arg,
-        rear_camera_config_arg,
-        front_stitching_config_arg,
-        rear_stitching_config_arg,
         # Front nodes (立即启动)
         front_camera_node,
         front_stitching_node,
