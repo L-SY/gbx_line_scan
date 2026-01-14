@@ -830,12 +830,13 @@ class ImageDisplayPanel(QGroupBox):
     topic_changed = pyqtSignal(str)
     refresh_topics_requested = pyqtSignal()
     
-    def __init__(self, title: str, default_topic: str = "", parent=None):
+    def __init__(self, title: str, default_topic: str = "", default_save_path: str = "", parent=None):
         super().__init__(title, parent)
         self._current_image = None
         self._frame_count = 0
         self._save_count = 0
         self._default_topic = default_topic
+        self._default_save_path = default_save_path if default_save_path else "/home/agilex/lsy/gbx_line_ws/src/gbx_line_scan/photo_station_v3/data/"
         self._setup_ui()
     
     def _setup_ui(self):
@@ -846,11 +847,14 @@ class ImageDisplayPanel(QGroupBox):
         topic_layout = QHBoxLayout()
         
         topic_label = QLabel("Topic:")
+        topic_label.setMinimumWidth(50)
+        topic_label.setMaximumWidth(50)
         topic_layout.addWidget(topic_label)
         
         self.topic_combo = QComboBox()
         self.topic_combo.setEditable(True)
         self.topic_combo.setMinimumWidth(500)
+        self.topic_combo.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         self.topic_combo.lineEdit().setPlaceholderText("/image_topic")
         if self._default_topic:
             self.topic_combo.setCurrentText(self._default_topic)
@@ -890,21 +894,27 @@ class ImageDisplayPanel(QGroupBox):
         save_layout = QHBoxLayout()
         
         save_path_label = QLabel("Path:")
+        save_path_label.setMinimumWidth(50)
+        save_path_label.setMaximumWidth(50)
         save_layout.addWidget(save_path_label)
         
         self.save_path_edit = QLineEdit()
         self.save_path_edit.setMinimumWidth(500)
-        self.save_path_edit.setPlaceholderText("Enter save path...")
+        self.save_path_edit.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        self.save_path_edit.setPlaceholderText("Enter save directory...")
+        self.save_path_edit.setText(self._default_save_path)
         save_layout.addWidget(self.save_path_edit)
         
-        self.browse_btn = QPushButton("Browse")
-        self.browse_btn.setMaximumWidth(80)
+        self.browse_btn = QPushButton("→")
+        self.browse_btn.setMaximumWidth(40)
         self.browse_btn.setStyleSheet("""
             QPushButton {
                 background-color: #E0E0E0;
                 border: 1px solid #808080;
                 border-radius: 3px;
                 padding: 5px;
+                font-size: 14px;
+                font-weight: bold;
             }
             QPushButton:hover { background-color: #D0D0D0; }
             QPushButton:pressed { background-color: #C0C0C0; }
@@ -1036,17 +1046,17 @@ class ImageDisplayPanel(QGroupBox):
         self.info_label.setText("Waiting for image...")
     
     def _on_browse_clicked(self):
-        """Open file dialog to select save path"""
-        from datetime import datetime
-        default_name = f"image_{datetime.now().strftime('%Y%m%d_%H%M%S')}.png"
+        """Open directory dialog to select save directory"""
+        current_path = self.save_path_edit.text().strip()
+        if not current_path:
+            current_path = self._default_save_path
         
-        filename, _ = QFileDialog.getSaveFileName(
-            self, "Save Image", default_name,
-            "PNG Images (*.png);;JPEG Images (*.jpg);;All Files (*.*)"
+        directory = QFileDialog.getExistingDirectory(
+            self, "Select Save Directory", current_path
         )
         
-        if filename:
-            self.save_path_edit.setText(filename)
+        if directory:
+            self.save_path_edit.setText(directory)
     
     def _on_save_clicked(self):
         """Save current image to file"""
@@ -1056,46 +1066,36 @@ class ImageDisplayPanel(QGroupBox):
         import os
         from datetime import datetime
         
-        # Get base path from input (could be directory or file path)
+        # Get directory path from input
         input_path = self.save_path_edit.text().strip()
+        if not input_path:
+            input_path = self._default_save_path
+        
+        # Ensure it's a directory (remove filename if present)
+        if not os.path.isdir(input_path):
+            # If it's a file path, extract directory
+            save_dir = os.path.dirname(input_path)
+            if save_dir:
+                input_path = save_dir
+            else:
+                input_path = self._default_save_path
         
         # Generate filename with current time (精确到秒)
         time_str = datetime.now().strftime('%Y%m%d_%H%M%S')
         time_based_filename = f"image_{time_str}.png"
-        
-        # Determine final save path: always use current time for filename
-        if not input_path:
-            # Empty input: use current directory with time-based name
-            filename = time_based_filename
-        elif os.path.isdir(input_path):
-            # Input is a directory: add time-based filename
-            filename = os.path.join(input_path, time_based_filename)
-        else:
-            # Input is a file path: replace filename with time-based name, keep directory
-            save_dir = os.path.dirname(input_path)
-            if save_dir:
-                filename = os.path.join(save_dir, time_based_filename)
-            else:
-                filename = time_based_filename
+        filename = os.path.join(input_path, time_based_filename)
         
         try:
             # Ensure directory exists
-            save_dir = os.path.dirname(filename)
-            if save_dir and not os.path.exists(save_dir):
-                os.makedirs(save_dir, exist_ok=True)
+            if not os.path.exists(input_path):
+                os.makedirs(input_path, exist_ok=True)
             
             cv2.imwrite(filename, self._current_image)
             self._save_count += 1
             self.save_count_label.setText(f"Saved: {self._save_count}")
             
-            # Update path for next save: keep directory, use new timestamp for filename
-            next_time_str = datetime.now().strftime('%Y%m%d_%H%M%S')
-            next_filename = f"image_{next_time_str}.png"
-            if save_dir:
-                next_save_path = os.path.join(save_dir, next_filename)
-            else:
-                next_save_path = next_filename
-            self.save_path_edit.setText(next_save_path)
+            # Keep directory path in input (don't show filename)
+            self.save_path_edit.setText(input_path)
         except Exception as e:
             self.save_count_label.setText(f"Save failed: {str(e)[:20]}")
 
@@ -1432,10 +1432,11 @@ class WorkflowGUI(QMainWindow):
         # Image panels in vertical splitter
         image_splitter = QSplitter(Qt.Vertical)
         
+        default_save_path = "/home/agilex/lsy/gbx_line_ws/src/gbx_line_scan/photo_station_v3/data/"
         self.front_image_panel = ImageDisplayPanel(
-            "Front Camera", "/camera_front/front/image_stitched")
+            "Front Camera", "/camera_front/front/image_stitched", default_save_path)
         self.rear_image_panel = ImageDisplayPanel(
-            "Rear Camera", "/camera_rear/rear/image_stitched")
+            "Rear Camera", "/camera_rear/rear/image_stitched", default_save_path)
         
         image_splitter.addWidget(self.front_image_panel)
         image_splitter.addWidget(self.rear_image_panel)
