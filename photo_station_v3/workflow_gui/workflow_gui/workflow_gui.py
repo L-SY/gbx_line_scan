@@ -469,6 +469,12 @@ class WorkflowNode(Node):
             self.cv_bridge = None
             self.get_logger().warn('Using manual image conversion (cv_bridge not available)')
         
+        # Image emit rate limiting (prevent signal queue buildup)
+        import time
+        self._front_last_emit_time = 0.0
+        self._rear_last_emit_time = 0.0
+        self._min_emit_interval = 0.1  # 100ms = max 10 fps for signal emit
+        
         self._setup_motor_interfaces()
         self._setup_light_interfaces()
         self._setup_image_interfaces()
@@ -666,21 +672,35 @@ class WorkflowNode(Node):
     
     # Image callbacks
     def _front_image_callback(self, msg: Image):
+        # Rate limiting: skip if too soon since last emit
+        import time
+        current_time = time.time()
+        if current_time - self._front_last_emit_time < self._min_emit_interval:
+            return  # Drop this frame to prevent signal queue buildup
+        
         try:
             if self.cv_bridge is not None:
                 cv_image = self.cv_bridge.imgmsg_to_cv2(msg, desired_encoding='passthrough')
             else:
                 cv_image = imgmsg_to_cv2_manual(msg)
+            self._front_last_emit_time = current_time
             self.signal_bridge.front_image_updated.emit(cv_image)
         except Exception as e:
             self.get_logger().error(f'Front image conversion error: {e}')
 
     def _rear_image_callback(self, msg: Image):
+        # Rate limiting: skip if too soon since last emit
+        import time
+        current_time = time.time()
+        if current_time - self._rear_last_emit_time < self._min_emit_interval:
+            return  # Drop this frame to prevent signal queue buildup
+        
         try:
             if self.cv_bridge is not None:
                 cv_image = self.cv_bridge.imgmsg_to_cv2(msg, desired_encoding='passthrough')
             else:
                 cv_image = imgmsg_to_cv2_manual(msg)
+            self._rear_last_emit_time = current_time
             self.signal_bridge.rear_image_updated.emit(cv_image)
         except Exception as e:
             self.get_logger().error(f'Rear image conversion error: {e}')
@@ -1350,7 +1370,9 @@ class ImageDisplayPanel(QGroupBox):
     def clear_image(self):
         """Clear the displayed image"""
         self._current_image = None
+        self._pending_image = None
         self._frame_count = 0
+        self._update_timer.stop()
         self.image_label.clear()
         self.image_label.setText("Waiting for image...")
         self.info_label.setText("Waiting for image...")
