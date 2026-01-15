@@ -115,4 +115,9 @@ install(DIRECTORY config
   DESTINATION share/${PROJECT_NAME}
 )
 
+# Install scripts
+install(PROGRAMS scripts/focus_assistant.py scripts/view_stitched_image.py
+  DESTINATION lib/${PROJECT_NAME}
+)
+
 ament_package()

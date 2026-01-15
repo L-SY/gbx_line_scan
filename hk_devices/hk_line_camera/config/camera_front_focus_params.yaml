@@ -1,0 +1,61 @@
+# 前相机自动对焦配置文件 (Camera 1 - Front Focus)
+# IP: 192.168.1.101
+
+/**:
+  ros__parameters:
+    # Camera selection - 通过 IP 地址选择相机
+    camera_ip: "192.168.1.101"    # 前相机 IP
+    camera_index: 0               # 备用：如果 camera_ip 为空则使用此索引
+    frame_id: "camera_front_frame"
+    image_topic: "front/image_raw"
+    
+    # ============================================
+    # Trigger Configuration (触发配置)
+    # ============================================
+    # 自动对焦模式：禁用所有触发，自由运行
+    # - 自由运行：frame_trigger_enabled: false, line_trigger_enabled: false
+    
+    # Frame Trigger parameters (FrameBurstStart - 帧触发)
+    # Controls when to start acquiring a frame - triggered by Line1
+    frame_trigger_enabled: false  # Enable/disable frame trigger
+    frame_trigger_mode: 1         # 1 = On, 0 = Off
+    frame_trigger_source: 1       # 1 = Line1 (帧触发线在line1上)
+    frame_trigger_activation: 3   # 0 = RisingEdge, 1 = FallingEdge, 2 = LevelHigh, 3 = LevelLow
+    frame_trigger_delay: 0.0      # Trigger delay in microseconds
+    
+    # Line Trigger parameters (LineStart - 行触发)
+    # Controls the timing of each line acquisition - triggered by encoder
+    line_trigger_enabled: false   # Enable/disable line trigger
+    line_trigger_mode: 1          # 1 = On, 0 = Off
+    line_trigger_source: 6        # 6 = EncoderModuleOut
+    line_trigger_activation: 0    # 0 = RisingEdge, 1 = FallingEdge, 2 = LevelHigh, 3 = LevelLow
+    line_trigger_delay: 0.0       # Trigger delay in microseconds
+    
+    # Encoder parameters (used with line trigger)
+    encoder_selector: 0
+    # EncoderSourceA: Line number (e.g., 0 = Line0, 3 = Line3)
+    encoder_source_a: 3
+    # EncoderSourceB: Line number
+    encoder_source_b: 0
+    # EncoderTriggerMode: 0 = AnyDirection
+    encoder_trigger_mode: 0
+    # EncoderCounterMode: 0 = IgnoreDirection
+    encoder_counter_mode: 0
+    encoder_counter: 0
+    encoder_counter_max: 10000
+    encoder_max_reverse_counter: 0
+    
+    # Exposure parameters
+    # Exposure time in microseconds
+    exposure_time_us: 50.0
+    
+    # Image control parameters
+    # Image height in pixels (0 = use camera default, set via camera SDK before starting capture)
+    # For line scan cameras, this controls the frame height captured by the camera
+    image_height: 300
+    
+    # Cropping parameters (percentage 0.0-1.0)
+    # Crop left/right edges before publishing
+    crop_left: 0.0                # Percentage to crop from left
+    crop_right: 0.0               # Percentage to crop from right
+    publish_debug_image: true     # If true, publish debug image with red crop lines
