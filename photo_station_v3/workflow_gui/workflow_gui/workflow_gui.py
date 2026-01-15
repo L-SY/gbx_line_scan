@@ -473,7 +473,7 @@ class WorkflowNode(Node):
         import time
         self._front_last_emit_time = 0.0
         self._rear_last_emit_time = 0.0
-        self._min_emit_interval = 0.1  # 100ms = max 10 fps for signal emit
+        self._min_emit_interval = 0.2  # 200ms = max 5 fps for signal emit
         
         self._setup_motor_interfaces()
         self._setup_light_interfaces()
@@ -1118,14 +1118,6 @@ class ImageDisplayPanel(QGroupBox):
         self._default_topic = default_topic
         self._default_save_path = default_save_path if default_save_path else "/home/agilex/lsy/gbx_line_ws/src/gbx_line_scan/photo_station_v3/data/"
         
-        # Frame rate limiting (max ~15 fps for display)
-        self._min_update_interval_ms = 66  # ~15 fps
-        self._last_update_time = 0
-        self._pending_image = None  # Store latest image for delayed update
-        self._update_timer = QTimer()
-        self._update_timer.setSingleShot(True)
-        self._update_timer.timeout.connect(self._do_delayed_update)
-        
         self._setup_ui()
     
     def _setup_ui(self):
@@ -1293,86 +1285,59 @@ class ImageDisplayPanel(QGroupBox):
         return self.topic_combo.currentText().strip()
     
     def update_image(self, cv_image):
-        """Update displayed image from OpenCV image with frame rate limiting"""
+        """Update displayed image from OpenCV image (rate limiting done at ROS level)"""
         if cv_image is None:
             return
         
-        # Always store the latest image for saving
-        self._current_image = cv_image.copy()
         self._frame_count += 1
         
-        # Frame rate limiting: check if enough time has passed
-        import time
-        current_time_ms = int(time.time() * 1000)
-        elapsed = current_time_ms - self._last_update_time
+        # Store reference for saving (no copy needed - ROS callback already copied)
+        self._current_image = cv_image
         
-        if elapsed < self._min_update_interval_ms:
-            # Too soon, store image and schedule delayed update
-            self._pending_image = cv_image
-            if not self._update_timer.isActive():
-                remaining = self._min_update_interval_ms - elapsed
-                self._update_timer.start(remaining)
-            return
-        
-        # Enough time has passed, update immediately
-        self._last_update_time = current_time_ms
-        self._pending_image = None
-        self._do_image_update(cv_image)
-    
-    def _do_delayed_update(self):
-        """Handle delayed image update from timer"""
-        if self._pending_image is not None:
-            import time
-            self._last_update_time = int(time.time() * 1000)
-            self._do_image_update(self._pending_image)
-            self._pending_image = None
-    
-    def _do_image_update(self, cv_image):
-        """Actually perform the image update to UI"""
-        # Rotate image 90 degrees clockwise for horizontal display
-        if len(cv_image.shape) == 2:
-            # Grayscale: rotate 90 degrees clockwise
-            rotated_image = cv2.rotate(cv_image, cv2.ROTATE_90_CLOCKWISE)
-            # Ensure contiguous memory
-            rotated_image = np.ascontiguousarray(rotated_image)
-            height, width = rotated_image.shape
-            bytes_per_line = width
-            q_image = QImage(rotated_image.data, width, height, bytes_per_line, QImage.Format_Grayscale8)
-            # IMPORTANT: Copy QImage to decouple from numpy memory
-            q_image = q_image.copy()
-        elif cv_image.shape[2] == 3:
-            # BGR to RGB, then rotate 90 degrees clockwise
-            rgb_image = cv2.cvtColor(cv_image, cv2.COLOR_BGR2RGB)
-            rotated_image = cv2.rotate(rgb_image, cv2.ROTATE_90_CLOCKWISE)
-            # Ensure contiguous memory
-            rotated_image = np.ascontiguousarray(rotated_image)
-            height, width, channel = rotated_image.shape
-            bytes_per_line = 3 * width
-            q_image = QImage(rotated_image.data, width, height, bytes_per_line, QImage.Format_RGB888)
-            # IMPORTANT: Copy QImage to decouple from numpy memory
-            q_image = q_image.copy()
-        else:
-            return
-        
-        # Scale to fit while maintaining aspect ratio
-        pixmap = QPixmap.fromImage(q_image)
-        scaled_pixmap = pixmap.scaled(
-            self.scroll_area.size() - QSize(20, 20),
-            Qt.KeepAspectRatio,
-            Qt.SmoothTransformation
-        )
-        
-        self.image_label.setPixmap(scaled_pixmap)
-        # Display original size in info (before rotation)
-        original_height, original_width = cv_image.shape[:2]
-        self.info_label.setText(f"Size: {original_width}x{original_height} (rotated) | Frames: {self._frame_count}")
+        try:
+            # Rotate image 90 degrees clockwise for horizontal display
+            if len(cv_image.shape) == 2:
+                # Grayscale
+                rotated = cv2.rotate(cv_image, cv2.ROTATE_90_CLOCKWISE)
+                h, w = rotated.shape
+                # Create QImage and immediately copy to decouple from numpy
+                q_image = QImage(rotated.data, w, h, w, QImage.Format_Grayscale8).copy()
+            elif len(cv_image.shape) == 3 and cv_image.shape[2] == 3:
+                # BGR to RGB, then rotate
+                rgb = cv2.cvtColor(cv_image, cv2.COLOR_BGR2RGB)
+                rotated = cv2.rotate(rgb, cv2.ROTATE_90_CLOCKWISE)
+                h, w = rotated.shape[:2]
+                q_image = QImage(rotated.data, w, h, w * 3, QImage.Format_RGB888).copy()
+            else:
+                return
+            
+            # Get target size
+            target_size = self.scroll_area.size() - QSize(20, 20)
+            
+            # Use FastTransformation for better performance
+            pixmap = QPixmap.fromImage(q_image)
+            scaled_pixmap = pixmap.scaled(
+                target_size,
+                Qt.KeepAspectRatio,
+                Qt.FastTransformation
+            )
+            
+            # Clear old pixmap before setting new one
+            self.image_label.clear()
+            self.image_label.setPixmap(scaled_pixmap)
+            
+            # Update info
+            original_height, original_width = cv_image.shape[:2]
+            self.info_label.setText(f"Size: {original_width}x{original_height} | Frames: {self._frame_count}")
+            
+        except Exception as e:
+            # Silently ignore errors to prevent log spam
+            pass
     
     def clear_image(self):
         """Clear the displayed image"""
         self._current_image = None
-        self._pending_image = None
         self._frame_count = 0
-        self._update_timer.stop()
         self.image_label.clear()
         self.image_label.setText("Waiting for image...")
         self.info_label.setText("Waiting for image...")
@@ -1451,7 +1416,11 @@ class ImageDisplayPanel(QGroupBox):
             if not os.path.exists(final_path):
                 os.makedirs(final_path, exist_ok=True)
             
-            cv2.imwrite(filename, self._current_image)
+            # Copy image for saving to avoid race conditions
+            save_image = self._current_image.copy() if self._current_image is not None else None
+            if save_image is None:
+                return False
+            cv2.imwrite(filename, save_image)
             self._save_count += 1
             self.save_count_label.setText(f"Saved: {self._save_count}")
             
