@@ -1271,18 +1271,21 @@ class ImageDisplayPanel(QGroupBox):
         self._current_image = cv_image.copy()
         self._frame_count += 1
         
-        # Convert to QImage
+        # Rotate image 90 degrees clockwise for horizontal display
+        # Rotate the OpenCV image before converting to QImage
         if len(cv_image.shape) == 2:
-            # Grayscale
-            height, width = cv_image.shape
+            # Grayscale: rotate 90 degrees clockwise
+            rotated_image = cv2.rotate(cv_image, cv2.ROTATE_90_CLOCKWISE)
+            height, width = rotated_image.shape
             bytes_per_line = width
-            q_image = QImage(cv_image.data, width, height, bytes_per_line, QImage.Format_Grayscale8)
+            q_image = QImage(rotated_image.data, width, height, bytes_per_line, QImage.Format_Grayscale8)
         elif cv_image.shape[2] == 3:
-            # BGR to RGB
+            # BGR to RGB, then rotate 90 degrees clockwise
             rgb_image = cv2.cvtColor(cv_image, cv2.COLOR_BGR2RGB)
-            height, width, channel = rgb_image.shape
+            rotated_image = cv2.rotate(rgb_image, cv2.ROTATE_90_CLOCKWISE)
+            height, width, channel = rotated_image.shape
             bytes_per_line = 3 * width
-            q_image = QImage(rgb_image.data, width, height, bytes_per_line, QImage.Format_RGB888)
+            q_image = QImage(rotated_image.data, width, height, bytes_per_line, QImage.Format_RGB888)
         else:
             return
         
@@ -1295,7 +1298,9 @@ class ImageDisplayPanel(QGroupBox):
         )
         
         self.image_label.setPixmap(scaled_pixmap)
-        self.info_label.setText(f"Size: {width}x{height} | Frames: {self._frame_count}")
+        # Display original size in info (before rotation)
+        original_height, original_width = cv_image.shape[:2]
+        self.info_label.setText(f"Size: {original_width}x{original_height} (rotated) | Frames: {self._frame_count}")
     
     def clear_image(self):
         """Clear the displayed image"""
@@ -1474,6 +1479,7 @@ class WorkflowGUI(QMainWindow):
         self._auto_save_timer = QTimer()
         self._auto_save_timer.timeout.connect(self._check_auto_save_condition)
         self._auto_save_timer.setInterval(200)  # Check every 200ms
+        self._lights_auto_opened = False  # Track if lights were opened by auto-save
         
         self._setup_ui()
         self._connect_signals()
@@ -1918,6 +1924,10 @@ class WorkflowGUI(QMainWindow):
         self.signal_bridge.front_image_updated.connect(self.front_image_panel.update_image)
         self.signal_bridge.rear_image_updated.connect(self.rear_image_panel.update_image)
         
+        # Connect image signals to auto-open lights in auto-save mode
+        self.signal_bridge.front_image_updated.connect(self._on_image_received_for_auto_light)
+        self.signal_bridge.rear_image_updated.connect(self._on_image_received_for_auto_light)
+        
         # Frame info signals for auto-save
         if FRAME_INFO_AVAILABLE:
             self.signal_bridge.front_frame_info_updated.connect(self._on_front_frame_info_received)
@@ -2090,11 +2100,21 @@ class WorkflowGUI(QMainWindow):
             self._rear_last_frame_time = None
             self._front_has_received_frame = False
             self._rear_has_received_frame = False
+            self._lights_auto_opened = False
             self.status_label.setText("Auto-save enabled - waiting for object")
         else:
             self.auto_save_checkbox.setText("Auto-Save: OFF")
             self.auto_save_status_label.setText("Disabled")
             self._auto_save_timer.stop()
+            # Close lights if they were auto-opened
+            if self._lights_auto_opened:
+                self.ros_node.publish_light1_control(False)
+                self.ros_node.publish_light2_control(False)
+                self._light1_enabled = False
+                self._light2_enabled = False
+                self.light1_panel.update_status(False)
+                self.light2_panel.update_status(False)
+                self._lights_auto_opened = False
             self.status_label.setText("Auto-save disabled")
     
     def _on_front_frame_info_received(self):
@@ -2114,6 +2134,25 @@ class WorkflowGUI(QMainWindow):
         self._rear_last_frame_time = time.time()
         self._rear_has_received_frame = True
         self.auto_save_status_label.setText("Capturing...")
+    
+    def _on_image_received_for_auto_light(self, cv_image):
+        """Handle image received - auto-open lights in auto-save mode"""
+        if not self._auto_save_enabled or self._lights_auto_opened:
+            return
+        
+        # Auto-open both lights when first image is received in auto-save mode
+        if not self._light1_enabled:
+            self.ros_node.publish_light1_control(True)
+            self._light1_enabled = True
+            self.light1_panel.update_status(True)
+        
+        if not self._light2_enabled:
+            self.ros_node.publish_light2_control(True)
+            self._light2_enabled = True
+            self.light2_panel.update_status(True)
+        
+        self._lights_auto_opened = True
+        self.status_label.setText("Lights auto-opened for detection")
     
     def _check_auto_save_condition(self):
         """Check if auto-save condition is met (1 second timeout)"""
@@ -2204,6 +2243,16 @@ class WorkflowGUI(QMainWindow):
         self._rear_last_frame_time = None
         self._front_has_received_frame = False
         self._rear_has_received_frame = False
+        
+            # Auto-close lights after saving
+        if self._lights_auto_opened:
+            self.ros_node.publish_light1_control(False)
+            self.ros_node.publish_light2_control(False)
+            self._light1_enabled = False
+            self._light2_enabled = False
+            self.light1_panel.update_status(False)
+            self.light2_panel.update_status(False)
+            self._lights_auto_opened = False
         
         # Re-enable after a short delay
         QTimer.singleShot(500, lambda: self._re_enable_auto_save())
