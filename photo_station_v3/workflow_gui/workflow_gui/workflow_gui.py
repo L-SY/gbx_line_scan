@@ -1097,6 +1097,15 @@ class ImageDisplayPanel(QGroupBox):
         self._save_count = 0
         self._default_topic = default_topic
         self._default_save_path = default_save_path if default_save_path else "/home/agilex/lsy/gbx_line_ws/src/gbx_line_scan/photo_station_v3/data/"
+        
+        # Frame rate limiting (max ~15 fps for display)
+        self._min_update_interval_ms = 66  # ~15 fps
+        self._last_update_time = 0
+        self._pending_image = None  # Store latest image for delayed update
+        self._update_timer = QTimer()
+        self._update_timer.setSingleShot(True)
+        self._update_timer.timeout.connect(self._do_delayed_update)
+        
         self._setup_ui()
     
     def _setup_ui(self):
@@ -1264,28 +1273,64 @@ class ImageDisplayPanel(QGroupBox):
         return self.topic_combo.currentText().strip()
     
     def update_image(self, cv_image):
-        """Update displayed image from OpenCV image"""
+        """Update displayed image from OpenCV image with frame rate limiting"""
         if cv_image is None:
             return
         
+        # Always store the latest image for saving
         self._current_image = cv_image.copy()
         self._frame_count += 1
         
+        # Frame rate limiting: check if enough time has passed
+        import time
+        current_time_ms = int(time.time() * 1000)
+        elapsed = current_time_ms - self._last_update_time
+        
+        if elapsed < self._min_update_interval_ms:
+            # Too soon, store image and schedule delayed update
+            self._pending_image = cv_image
+            if not self._update_timer.isActive():
+                remaining = self._min_update_interval_ms - elapsed
+                self._update_timer.start(remaining)
+            return
+        
+        # Enough time has passed, update immediately
+        self._last_update_time = current_time_ms
+        self._pending_image = None
+        self._do_image_update(cv_image)
+    
+    def _do_delayed_update(self):
+        """Handle delayed image update from timer"""
+        if self._pending_image is not None:
+            import time
+            self._last_update_time = int(time.time() * 1000)
+            self._do_image_update(self._pending_image)
+            self._pending_image = None
+    
+    def _do_image_update(self, cv_image):
+        """Actually perform the image update to UI"""
         # Rotate image 90 degrees clockwise for horizontal display
-        # Rotate the OpenCV image before converting to QImage
         if len(cv_image.shape) == 2:
             # Grayscale: rotate 90 degrees clockwise
             rotated_image = cv2.rotate(cv_image, cv2.ROTATE_90_CLOCKWISE)
+            # Ensure contiguous memory
+            rotated_image = np.ascontiguousarray(rotated_image)
             height, width = rotated_image.shape
             bytes_per_line = width
             q_image = QImage(rotated_image.data, width, height, bytes_per_line, QImage.Format_Grayscale8)
+            # IMPORTANT: Copy QImage to decouple from numpy memory
+            q_image = q_image.copy()
         elif cv_image.shape[2] == 3:
             # BGR to RGB, then rotate 90 degrees clockwise
             rgb_image = cv2.cvtColor(cv_image, cv2.COLOR_BGR2RGB)
             rotated_image = cv2.rotate(rgb_image, cv2.ROTATE_90_CLOCKWISE)
+            # Ensure contiguous memory
+            rotated_image = np.ascontiguousarray(rotated_image)
             height, width, channel = rotated_image.shape
             bytes_per_line = 3 * width
             q_image = QImage(rotated_image.data, width, height, bytes_per_line, QImage.Format_RGB888)
+            # IMPORTANT: Copy QImage to decouple from numpy memory
+            q_image = q_image.copy()
         else:
             return
         
