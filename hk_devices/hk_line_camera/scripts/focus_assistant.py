@@ -3,7 +3,15 @@
 对焦辅助工具 - 通过拉普拉斯方差评估图像清晰度
 """
 
+import os
 import sys
+
+# 修复Qt插件问题：必须在导入cv2之前设置
+# 清除pip安装的OpenCV的Qt路径，使用系统Qt
+if 'QT_QPA_PLATFORM_PLUGIN_PATH' in os.environ:
+    del os.environ['QT_QPA_PLATFORM_PLUGIN_PATH']
+os.environ['QT_PLUGIN_PATH'] = '/usr/lib/x86_64-linux-gnu/qt5/plugins'
+
 import argparse
 from collections import deque
 import time
@@ -59,9 +67,16 @@ def ros_image_to_cv2(msg):
     return img
 
 
-def scan_image_topics(node):
-    """扫描所有Image类型的话题"""
+def scan_image_topics(node, wait_time=2.0):
+    """扫描所有Image类型的话题，等待话题发现"""
     topics = []
+    
+    # 等待话题发现
+    node.get_logger().info(f'等待话题发现 ({wait_time}秒)...')
+    start_time = time.time()
+    while time.time() - start_time < wait_time:
+        rclpy.spin_once(node, timeout_sec=0.1)
+    
     try:
         topic_names_and_types = node.get_topic_names_and_types()
         for topic_name, topic_types in topic_names_and_types:
@@ -83,6 +98,7 @@ class FocusAssistant(Node):
         self.current_topic = topic_name
         self.selecting_topic = False
         self.available_topics = []
+        self.need_scan = False
         
         # cv_bridge
         if USE_CV_BRIDGE:
@@ -110,13 +126,9 @@ class FocusAssistant(Node):
         if topic_name:
             self.subscribe_to_topic(topic_name)
         else:
-            # 如果没有提供话题，扫描并选择
-            self.available_topics = scan_image_topics(self)
-            if self.available_topics:
-                self.selecting_topic = True
-                self.get_logger().info(f'发现 {len(self.available_topics)} 个图像话题，等待选择')
-            else:
-                self.get_logger().warn('未发现图像话题')
+            # 如果没有提供话题，标记需要扫描
+            self.selecting_topic = True
+            self.need_scan = True
         
         self.get_logger().info(f'GUI模式: {gui_mode}')
     
@@ -372,7 +384,7 @@ class FocusAssistant(Node):
                 self.get_logger().info('已重置')
         elif key == ord('s'):
             # 重新扫描话题
-            self.available_topics = scan_image_topics(self)
+            self.available_topics = scan_image_topics(self, wait_time=1.0)
             if self.available_topics:
                 self.selecting_topic = True
                 self.get_logger().info(f'发现 {len(self.available_topics)} 个图像话题')
@@ -390,7 +402,7 @@ class FocusAssistant(Node):
         elif key == ord('t'):
             # 运行时切换话题
             if not self.selecting_topic:
-                self.available_topics = scan_image_topics(self)
+                self.available_topics = scan_image_topics(self, wait_time=1.0)
                 if self.available_topics:
                     self.selecting_topic = True
                     self.get_logger().info(f'切换到话题选择模式，发现 {len(self.available_topics)} 个话题')
@@ -417,6 +429,15 @@ def main():
     )
     
     try:
+        # 首次扫描话题（如果需要）
+        if node.need_scan:
+            node.available_topics = scan_image_topics(node, wait_time=2.0)
+            node.need_scan = False
+            if node.available_topics:
+                node.get_logger().info(f'发现 {len(node.available_topics)} 个图像话题')
+            else:
+                node.get_logger().warn('未发现图像话题，按s重新扫描')
+        
         # 主循环：处理话题选择和图像处理
         while rclpy.ok():
             if node.selecting_topic:
@@ -434,8 +455,7 @@ def main():
                             node.get_logger().info(f"  {i+1}. {topic}")
                     else:
                         node.get_logger().warn("未发现图像话题，等待...")
-                        time.sleep(1)
-                        node.available_topics = scan_image_topics(node)
+                        node.available_topics = scan_image_topics(node, wait_time=1.0)
                 rclpy.spin_once(node, timeout_sec=0.1)
             else:
                 # 正常模式：处理图像
