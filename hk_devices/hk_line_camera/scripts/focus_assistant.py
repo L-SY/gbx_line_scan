@@ -164,24 +164,23 @@ class FocusAssistant(Node):
             return False
     
     def create_topic_selection_display(self):
-        """创建话题选择界面"""
+        """Create topic selection display"""
         width, height = 600, 500
         img = np.ones((height, width, 3), dtype=np.uint8) * 40
         
         font = cv2.FONT_HERSHEY_SIMPLEX
-        title = "选择图像话题 (Select Image Topic)"
+        title = "Select Image Topic"
         cv2.putText(img, title, (20, 40), font, 0.8, (255, 255, 255), 2)
         
         if not self.available_topics:
-            cv2.putText(img, "未发现图像话题", (20, 100), font, 0.7, (0, 0, 255), 2)
-            cv2.putText(img, "按 's' 重新扫描", (20, 140), font, 0.6, (200, 200, 200), 1)
+            cv2.putText(img, "No image topics found", (20, 100), font, 0.7, (0, 0, 255), 2)
+            cv2.putText(img, "Press 's' to rescan", (20, 140), font, 0.6, (200, 200, 200), 1)
         else:
             y = 80
             for i, topic in enumerate(self.available_topics):
-                if i >= 9:  # 只显示前9个（数字键1-9）
+                if i >= 9:
                     break
                 
-                # 高亮当前话题
                 if topic == self.current_topic:
                     color = (0, 255, 0)
                     prefix = "> "
@@ -194,18 +193,14 @@ class FocusAssistant(Node):
                 y += 35
             
             if len(self.available_topics) > 9:
-                cv2.putText(img, f"... 还有 {len(self.available_topics)-9} 个话题", 
+                cv2.putText(img, f"... {len(self.available_topics)-9} more topics", 
                            (20, y), font, 0.5, (150, 150, 150), 1)
         
-        # 说明文字
-        y = height - 100
-        cv2.putText(img, "操作说明:", (20, y), font, 0.6, (255, 255, 0), 1)
+        # Instructions
+        y = height - 80
+        cv2.putText(img, "Controls:", (20, y), font, 0.6, (255, 255, 0), 1)
         y += 25
-        cv2.putText(img, "数字键 1-9: 选择话题", (20, y), font, 0.5, (200, 200, 200), 1)
-        y += 20
-        cv2.putText(img, "s: 重新扫描话题", (20, y), font, 0.5, (200, 200, 200), 1)
-        y += 20
-        cv2.putText(img, "q: 退出", (20, y), font, 0.5, (200, 200, 200), 1)
+        cv2.putText(img, "1-9: Select topic | s: Rescan | q: Quit", (20, y), font, 0.5, (200, 200, 200), 1)
         
         return img
 
@@ -280,8 +275,8 @@ class FocusAssistant(Node):
         
         cv2.putText(combined, status, (10, y_offset + 20), font, 1.0, color, 2)
         
-        # 提示按t切换话题
-        cv2.putText(combined, "Press 't' to switch topic", (10, combined.shape[0] - 20), 
+        # Controls hint
+        cv2.putText(combined, "t: Switch topic | r: Reset | q: Quit", (10, combined.shape[0] - 20), 
                    font, 0.5, (150, 150, 150), 1)
         
         return combined
