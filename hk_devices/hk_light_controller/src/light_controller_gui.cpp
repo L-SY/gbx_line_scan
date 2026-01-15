@@ -79,7 +79,7 @@ void LightControllerGUI::setupUI()
   light1_layout->addWidget(light1_current_label_, 2, 1);
   
   light1_power_label_ = new QLabel("功率: 0.00 W", this);
-  light1_power_label_->setStyleSheet("QLabel { font-weight: bold; color: #0066CC; }");
+  light1_power_label_->setStyleSheet("QLabel { font-weight: bold; color: #333333; }");
   light1_layout->addWidget(light1_power_label_, 3, 0, 1, 2);
   
   light1_brightness_slider_ = new QSlider(Qt::Horizontal, this);
@@ -113,7 +113,7 @@ void LightControllerGUI::setupUI()
   light2_layout->addWidget(light2_current_label_, 2, 1);
   
   light2_power_label_ = new QLabel("功率: 0.00 W", this);
-  light2_power_label_->setStyleSheet("QLabel { font-weight: bold; color: #0066CC; }");
+  light2_power_label_->setStyleSheet("QLabel { font-weight: bold; color: #333333; }");
   light2_layout->addWidget(light2_power_label_, 3, 0, 1, 2);
   
   light2_brightness_slider_ = new QSlider(Qt::Horizontal, this);
@@ -317,11 +317,11 @@ void LightControllerGUI::triggerSourceCallback(const std_msgs::msg::String::Shar
 void LightControllerGUI::connectionStatusCallback(const std_msgs::msg::Bool::SharedPtr msg)
 {
   if (msg->data) {
-    connection_status_label_->setText("连接状态: ✓ 已连接");
-    connection_status_label_->setStyleSheet("QLabel { font-weight: bold; font-size: 12pt; color: green; }");
+    connection_status_label_->setText("连接状态: 已连接");
+    connection_status_label_->setStyleSheet("QLabel { font-weight: bold; font-size: 12pt; color: #333333; }");
   } else {
-    connection_status_label_->setText("连接状态: ✗ 未连接");
-    connection_status_label_->setStyleSheet("QLabel { font-weight: bold; font-size: 12pt; color: red; }");
+    connection_status_label_->setText("连接状态: 未连接");
+    connection_status_label_->setStyleSheet("QLabel { font-weight: bold; font-size: 12pt; color: #666666; }");
   }
 }
 
@@ -354,11 +354,11 @@ void LightControllerGUI::updateUI()
   // Update light 1
   if (light1_enabled_) {
     light1_toggle_btn_->setText("开启");
-    light1_toggle_btn_->setStyleSheet("QPushButton { font-size: 12pt; padding: 10px; background-color: #90EE90; }");
+    light1_toggle_btn_->setStyleSheet("QPushButton { font-size: 12pt; padding: 10px; background-color: #CCCCCC; }");
     light1_status_label_->setText("状态: 开启");
   } else {
     light1_toggle_btn_->setText("关闭");
-    light1_toggle_btn_->setStyleSheet("QPushButton { font-size: 12pt; padding: 10px; background-color: #FFB6C1; }");
+    light1_toggle_btn_->setStyleSheet("QPushButton { font-size: 12pt; padding: 10px; background-color: #E0E0E0; }");
     light1_status_label_->setText("状态: 关闭");
   }
   light1_brightness_label_->setText(QString("亮度: %1").arg(light1_brightness_));
@@ -370,11 +370,11 @@ void LightControllerGUI::updateUI()
   // Update light 2
   if (light2_enabled_) {
     light2_toggle_btn_->setText("开启");
-    light2_toggle_btn_->setStyleSheet("QPushButton { font-size: 12pt; padding: 10px; background-color: #90EE90; }");
+    light2_toggle_btn_->setStyleSheet("QPushButton { font-size: 12pt; padding: 10px; background-color: #CCCCCC; }");
     light2_status_label_->setText("状态: 开启");
   } else {
     light2_toggle_btn_->setText("关闭");
-    light2_toggle_btn_->setStyleSheet("QPushButton { font-size: 12pt; padding: 10px; background-color: #FFB6C1; }");
+    light2_toggle_btn_->setStyleSheet("QPushButton { font-size: 12pt; padding: 10px; background-color: #E0E0E0; }");
     light2_status_label_->setText("状态: 关闭");
   }
   light2_brightness_label_->setText(QString("亮度: %1").arg(light2_brightness_));
