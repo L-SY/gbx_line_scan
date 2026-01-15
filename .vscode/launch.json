@@ -1,0 +1,44 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "MCU: Cortex-Debug (CMSIS-DAP)",
+      "type": "cortex-debug",
+      "request": "launch",
+      "servertype": "openocd",
+      "cwd": "${workspaceFolder}/embedded_controller",
+      "executable": "${workspaceFolder}/embedded_controller/build/${input:firmwareName}.elf",
+      "configFiles": [
+        "interface/cmsis-dap.cfg",
+        "target/gd32f30x.cfg"
+      ],
+      "device": "GD32F30x",
+      "interface": "swd",
+      "runToEntryPoint": "main",
+      "showDevDebugOutput": "raw"
+    },
+    {
+      "name": "MCU: Cortex-Debug (ST-Link)",
+      "type": "cortex-debug",
+      "request": "launch",
+      "servertype": "openocd",
+      "cwd": "${workspaceFolder}/embedded_controller",
+      "executable": "${workspaceFolder}/embedded_controller/build/${input:firmwareName}.elf",
+      "configFiles": [
+        "interface/stlink.cfg",
+        "target/stm32f4x.cfg"
+      ],
+      "device": "STM32F4xx",
+      "interface": "swd",
+      "runToEntryPoint": "main",
+      "showDevDebugOutput": "raw"
+    }
+  ],
+  "inputs": [
+    {
+      "id": "firmwareName",
+      "type": "promptString",
+      "description": "Firmware executable name (without .elf)"
+    }
+  ]
+}

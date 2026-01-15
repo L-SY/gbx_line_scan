@@ -1,0 +1,19 @@
+{
+  "configurations": [
+    {
+      "name": "Embedded",
+      "includePath": [
+        "${workspaceFolder}/embedded_controller/**",
+        "/usr/include/**"
+      ],
+      "defines": [],
+      "compilerPath": "/usr/bin/arm-none-eabi-gcc",
+      "cStandard": "c11",
+      "cppStandard": "c++17",
+      "intelliSenseMode": "gcc-arm",
+      "configurationProvider": "ms-vscode.cmake-tools",
+      "compileCommands": "${workspaceFolder}/embedded_controller/build/compile_commands.json"
+    }
+  ],
+  "version": 4
+}

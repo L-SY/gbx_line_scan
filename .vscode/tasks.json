@@ -1,0 +1,77 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "MCU: Build",
+      "type": "shell",
+      "command": "cmake --build build",
+      "args": [],
+      "options": {
+        "cwd": "${workspaceFolder}/embedded_controller"
+      },
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      },
+      "problemMatcher": [
+        "$gcc"
+      ],
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      }
+    },
+    {
+      "label": "MCU: Configure",
+      "type": "shell",
+      "command": "cmake -S . -B build",
+      "options": {
+        "cwd": "${workspaceFolder}/embedded_controller"
+      },
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      }
+    },
+    {
+      "label": "MCU: Flash (CMSIS-DAP)",
+      "type": "shell",
+      "command": "cmake --build build && openocd -f interface/cmsis-dap.cfg -f target/gd32f30x.cfg -c \"program build/${input:firmwareName}.elf verify reset exit\"",
+      "options": {
+        "cwd": "${workspaceFolder}/embedded_controller"
+      },
+      "problemMatcher": [
+        "$gcc"
+      ],
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      },
+      "group": "none"
+    },
+    {
+      "label": "MCU: Flash (ST-Link)",
+      "type": "shell",
+      "command": "cmake --build build && openocd -f interface/stlink.cfg -f target/stm32f4x.cfg -c \"program build/${input:firmwareName}.elf verify reset exit\"",
+      "options": {
+        "cwd": "${workspaceFolder}/embedded_controller"
+      },
+      "problemMatcher": [
+        "$gcc"
+      ],
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      },
+      "group": "none"
+    }
+  ],
+  "inputs": [
+    {
+      "id": "firmwareName",
+      "type": "promptString",
+      "description": "Firmware executable name (without .elf)"
+    }
+  ]
+}

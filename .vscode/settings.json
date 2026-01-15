@@ -1,0 +1,40 @@
+{
+  // CMake配置（针对单片机项目）
+  "cmake.configureOnOpen": true,
+  "cmake.buildDirectory": "${workspaceFolder}/embedded_controller/build",
+  "cmake.generator": "Unix Makefiles",
+  "cmake.sourceDirectory": "${workspaceFolder}/embedded_controller",
+  
+  // clangd配置（推荐使用clangd，禁用C/C++插件的IntelliSense避免冲突）
+  "clangd.path": "clangd",
+  "clangd.arguments": [
+    "--background-index",
+    "--clang-tidy",
+    "--completion-style=detailed",
+    "--header-insertion=iwyu"
+  ],
+  "clangd.fallbackFlags": [
+    "-std=c11"
+  ],
+  
+  // 禁用C/C++插件的IntelliSense（如果安装了C/C++插件，使用clangd代替）
+  "C_Cpp.intelliSenseEngine": "disabled",
+  
+  // 文件关联
+  "files.associations": {
+    "*.h": "c",
+    "*.hpp": "cpp",
+    "*.cpp": "cpp",
+    "*.c": "c"
+  },
+  
+  // 编辑器配置
+  "editor.formatOnSave": true,
+  "editor.defaultFormatter": "llvm-vs-code-extensions.vscode-clangd",
+  "[cpp]": {
+    "editor.defaultFormatter": "llvm-vs-code-extensions.vscode-clangd"
+  },
+  "[c]": {
+    "editor.defaultFormatter": "llvm-vs-code-extensions.vscode-clangd"
+  }
+}
