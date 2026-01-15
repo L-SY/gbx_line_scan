@@ -338,14 +338,24 @@ bool HkLineCameraNode::configureCameraParameters()
 {
   RCLCPP_INFO(this->get_logger(), "Configuring camera parameters...");
   
-  // Configure frame trigger if enabled
+  // Configure frame trigger
   if (frame_trigger_enabled_) {
     if (!setFrameTriggerParameters()) {
       return false;
     }
+  } else {
+    // Explicitly disable frame trigger for free-run mode
+    RCLCPP_INFO(this->get_logger(), "Disabling frame trigger (FrameBurstStart)...");
+    if (!setEnumValue("TriggerSelector", 6)) {  // 6 = FrameBurstStart
+      RCLCPP_WARN(this->get_logger(), "Failed to set TriggerSelector to FrameBurstStart");
+    } else if (!setEnumValue("TriggerMode", 0)) {  // 0 = Off
+      RCLCPP_WARN(this->get_logger(), "Failed to disable frame TriggerMode");
+    } else {
+      RCLCPP_INFO(this->get_logger(), "Frame trigger disabled (TriggerMode=Off)");
+    }
   }
   
-  // Configure line trigger if enabled
+  // Configure line trigger
   if (line_trigger_enabled_) {
     if (!setLineTriggerParameters()) {
       return false;
@@ -355,10 +365,20 @@ bool HkLineCameraNode::configureCameraParameters()
     if (!setEncoderParameters()) {
       return false;
     }
+  } else {
+    // Explicitly disable line trigger for free-run mode
+    RCLCPP_INFO(this->get_logger(), "Disabling line trigger (LineStart)...");
+    if (!setEnumValue("TriggerSelector", 9)) {  // 9 = LineStart
+      RCLCPP_WARN(this->get_logger(), "Failed to set TriggerSelector to LineStart");
+    } else if (!setEnumValue("TriggerMode", 0)) {  // 0 = Off
+      RCLCPP_WARN(this->get_logger(), "Failed to disable line TriggerMode");
+    } else {
+      RCLCPP_INFO(this->get_logger(), "Line trigger disabled (TriggerMode=Off)");
+    }
   }
   
   if (!frame_trigger_enabled_ && !line_trigger_enabled_) {
-    RCLCPP_WARN(this->get_logger(), "Both frame and line triggers are disabled - camera will run in free-run mode");
+    RCLCPP_INFO(this->get_logger(), "Camera running in free-run mode (all triggers disabled)");
   }
   
   if (!setExposureParameters()) {
