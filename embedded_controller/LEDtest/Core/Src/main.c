@@ -139,6 +139,11 @@ int main(void)
       // PB8保持低电平时，持续输出
       HAL_UART_Transmit(&huart2, (uint8_t*)"vertical1\r\n", 11, HAL_MAX_DELAY);
     }
+    else if (pb8_state == GPIO_PIN_SET)
+    {
+      // PB8保持高电平时，持续输出
+      HAL_UART_Transmit(&huart2, (uint8_t*)"vertical0\r\n", 11, HAL_MAX_DELAY);
+    }
     
     // 处理 PB9 的状态变化和持续输出
     if (pb9_state != last_pb9_state)
@@ -158,6 +163,11 @@ int main(void)
     {
       // PB9保持低电平时，持续输出
       HAL_UART_Transmit(&huart2, (uint8_t*)"horizontal1\r\n", 13, HAL_MAX_DELAY);
+    }
+    else if (pb9_state == GPIO_PIN_SET)
+    {
+      // PB9保持高电平时，持续输出
+      HAL_UART_Transmit(&huart2, (uint8_t*)"horizontal0\r\n", 13, HAL_MAX_DELAY);
     }
     
     HAL_Delay(10);  // 短暂延时，避免CPU占用过高
