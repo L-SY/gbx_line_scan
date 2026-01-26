@@ -90,6 +90,8 @@ int main(void)
   MX_GPIO_Init();
   MX_USART2_UART_Init();
   /* USER CODE BEGIN 2 */
+  GPIO_PinState last_pb8_state = GPIO_PIN_SET;  // 记录上一次PB8的状态
+  GPIO_PinState last_pb9_state = GPIO_PIN_SET;  // 记录上一次PB9的状态
   GPIO_PinState last_pc13_state = GPIO_PIN_SET;  // 记录上一次PC13的状态
 
   /* USER CODE END 2 */
@@ -118,20 +120,44 @@ int main(void)
       HAL_GPIO_WritePin(GPIOC, GPIO_PIN_13, GPIO_PIN_SET);
     }
     
-    // 当PC13状态改变时，通过串口发送数据
-    if (pc13_state != last_pc13_state)
+    // 处理 PB8 的状态变化和持续输出
+    if (pb8_state != last_pb8_state)
     {
-      if (pc13_state == GPIO_PIN_RESET)
+      // 状态改变时发送相应消息
+      if (pb8_state == GPIO_PIN_RESET)
       {
-        // PC13低电平，发送'1'
-        HAL_UART_Transmit(&huart2, (uint8_t*)"1", 1, HAL_MAX_DELAY);
+        HAL_UART_Transmit(&huart2, (uint8_t*)"vertical1\r\n", 11, HAL_MAX_DELAY);
       }
       else
       {
-        // PC13高电平，发送'0'
-        HAL_UART_Transmit(&huart2, (uint8_t*)"0", 1, HAL_MAX_DELAY);
+        HAL_UART_Transmit(&huart2, (uint8_t*)"vertical0\r\n", 11, HAL_MAX_DELAY);
       }
-      last_pc13_state = pc13_state;
+      last_pb8_state = pb8_state;
+    }
+    else if (pb8_state == GPIO_PIN_RESET)
+    {
+      // PB8保持低电平时，持续输出
+      HAL_UART_Transmit(&huart2, (uint8_t*)"vertical1\r\n", 11, HAL_MAX_DELAY);
+    }
+    
+    // 处理 PB9 的状态变化和持续输出
+    if (pb9_state != last_pb9_state)
+    {
+      // 状态改变时发送相应消息
+      if (pb9_state == GPIO_PIN_RESET)
+      {
+        HAL_UART_Transmit(&huart2, (uint8_t*)"horizontal1\r\n", 13, HAL_MAX_DELAY);
+      }
+      else
+      {
+        HAL_UART_Transmit(&huart2, (uint8_t*)"horizontal0\r\n", 13, HAL_MAX_DELAY);
+      }
+      last_pb9_state = pb9_state;
+    }
+    else if (pb9_state == GPIO_PIN_RESET)
+    {
+      // PB9保持低电平时，持续输出
+      HAL_UART_Transmit(&huart2, (uint8_t*)"horizontal1\r\n", 13, HAL_MAX_DELAY);
     }
     
     HAL_Delay(10);  // 短暂延时，避免CPU占用过高
