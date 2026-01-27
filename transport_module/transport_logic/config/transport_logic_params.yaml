@@ -1,0 +1,13 @@
+transport_logic_node:
+  ros__parameters:
+    # ZD Motor 配置
+    motor_device_path: "/dev/ttyUSB1"
+    motor_baud_rate: 19200
+    motor_slave_address: 1
+    
+    # 速度配置 (RPM)
+    reverse_speed_rpm: 1000
+    forward_speed_rpm: 1000
+    
+    # Microswitch 话题
+    microswitch_topic: "/microswitch/data"
