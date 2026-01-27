@@ -68,6 +68,7 @@ target_link_directories(transport_logic_node PRIVATE ${rs485_interface_lib_searc
 
 target_link_libraries(transport_logic_node
   zd_motor_unified_lib
+  lc_servo_motor_unified_lib
   rs485_device_base_unified_lib
   rs485_client_unified_lib
 )

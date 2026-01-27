@@ -13,7 +13,7 @@ def generate_launch_description():
     # Declare launch arguments
     device_path_arg = DeclareLaunchArgument(
         'device_path',
-        default_value='/dev/ttyACM0',
+        default_value='/dev/ttyACM1',
         description='Path to RS485 serial device (e.g., /dev/ttyACM0)'
     )
     
@@ -25,7 +25,7 @@ def generate_launch_description():
     
     slave_address_arg = DeclareLaunchArgument(
         'slave_address',
-        default_value='1',
+        default_value='3',
         description='MODBUS slave address'
     )
     
