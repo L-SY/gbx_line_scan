@@ -1,8 +1,8 @@
 transport_logic_node:
   ros__parameters:
     # 启用控制（设置为 false 可以禁用某个电机）
-    enable_zd_motor: true
-    enable_servo_motor: false
+    enable_zd_motor: false
+    enable_servo_motor: true
     
     # ZD Motor 配置
     motor_device_path: "/dev/ttyACM1"
@@ -20,7 +20,7 @@ transport_logic_node:
     
     # LC Servo Motor 速度配置 (RPM)
     servo_forward_speed_rpm: 50.0
-    servo_reverse_speed_rpm: 50.0
+    servo_reverse_speed_rpm: 150.0
     
     # Microswitch 话题
     microswitch_topic: "/microswitch/data"
