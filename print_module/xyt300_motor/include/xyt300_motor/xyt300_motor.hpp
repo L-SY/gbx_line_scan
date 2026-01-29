@@ -142,8 +142,8 @@ public:
    * @param speed_rpm Output shaft speed in RPM (after gear reduction)
    * @return true if successful, false otherwise
    * 
-   * Converts output shaft RPM to PWM duty cycle (0-500),
-   * then sends to device using protocol formula: send_value = 500 - duty_cycle
+   * Converts output shaft RPM to PWM duty cycle (0-511 according to protocol),
+   * then sends to device using protocol formula: send_value = 511 - duty_cycle
    * Maximum output shaft RPM is limited by max_output_rpm parameter.
    */
   bool setSpeedRPM(uint16_t speed_rpm);
@@ -211,8 +211,10 @@ public:
 private:
   // Register addresses (from actual protocol documentation)
   static constexpr uint16_t REG_START = 0x0050;            // Start command
+  static constexpr uint16_t REG_STOP = 0x0052;            // Stop command (according to protocol)
   static constexpr uint16_t REG_FORWARD = 0x0054;          // Forward command
   static constexpr uint16_t REG_REVERSE = 0x0056;          // Reverse command
+  static constexpr uint16_t REG_EMERGENCY_STOP = 0x0058;   // Emergency stop command
   static constexpr uint16_t REG_SPEED_SETTING = 0x005A;    // Speed setting
   static constexpr uint16_t REG_READ_STATUS = 0x0010;      // Read status (function code 0x04)
   static constexpr uint16_t REG_READ_SPEED = 0x0020;      // Read speed (function code 0x04) - pulse count
@@ -230,7 +232,7 @@ private:
   uint16_t pulses_per_revolution_;  // Pv: pulses per revolution
   uint16_t gear_ratio_;  // Gear reduction ratio
   uint16_t max_output_rpm_;  // Maximum output shaft RPM for duty cycle mapping
-  static constexpr uint16_t MAX_DUTY_CYCLE = 500;  // Maximum PWM duty cycle value
+  static constexpr uint16_t MAX_DUTY_CYCLE = 511;  // Maximum PWM duty cycle value (according to protocol: 0-511)
 };
 
 }  // namespace xyt300_motor

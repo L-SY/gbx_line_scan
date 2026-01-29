@@ -8,6 +8,8 @@
 #include <sys/select.h>
 #include <chrono>
 #include <thread>
+#include <iostream>
+#include <iomanip>
 
 namespace xyt300_motor
 {
@@ -602,6 +604,11 @@ bool ModbusClient::writeSingleRegisterNoResponse(
   
   // Send request (no response expected)
   if (!sendData(request)) {
+    std::cerr << "ModbusClient: Failed to send writeSingleRegisterNoResponse command. "
+              << "Slave: " << static_cast<int>(slave_address) 
+              << ", Register: 0x" << std::hex << register_address << std::dec
+              << ", Value: 0x" << std::hex << value << std::dec
+              << ", Error: " << last_error_ << std::endl;
     return false;
   }
 

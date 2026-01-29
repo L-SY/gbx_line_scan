@@ -2,6 +2,8 @@
 #include <thread>
 #include <chrono>
 #include <vector>
+#include <iostream>
+#include <iomanip>
 
 namespace xyt300_motor
 {
@@ -236,19 +238,16 @@ bool Xyt300Motor::writeRegisterNoResponse(uint16_t register_address, uint16_t va
 
 bool Xyt300Motor::setControlCommand(ControlCommand command)
 {
-  // According to protocol, control commands use different registers:
-  // START -> 0x0050, FORWARD -> 0x0054, REVERSE -> 0x0056
+  // According to protocol documentation:
+  // START -> 0x0050, STOP -> 0x0052, FORWARD -> 0x0054, REVERSE -> 0x0056, EMERGENCY_STOP -> 0x0058
   // All commands write value 0x0001, and device responds with echo
-  // STOP -> set speed to 10 RPM
-  if (command == ControlCommand::STOP) {
-    // Stop by setting speed to 10 RPM
-    return setSpeedRPM(10);
-  }
-  
   uint16_t register_address;
   switch (command) {
     case ControlCommand::START:
       register_address = REG_START;
+      break;
+    case ControlCommand::STOP:
+      register_address = REG_STOP;  // Use proper stop register 0x0052
       break;
     case ControlCommand::FORWARD:
       register_address = REG_FORWARD;
@@ -262,13 +261,20 @@ bool Xyt300Motor::setControlCommand(ControlCommand command)
   }
   
   // Write 0x0001 to the appropriate register (device responds with echo)
-  return writeRegisterNoResponse(register_address, 0x0001);
+  bool result = writeRegisterNoResponse(register_address, 0x0001);
+  if (!result) {
+    // Log error for debugging
+    std::cerr << "Xyt300Motor: Failed to set control command " << static_cast<int>(command) 
+              << " (register 0x" << std::hex << register_address << std::dec 
+              << "): " << last_error_ << std::endl;
+  }
+  return result;
 }
 
 bool Xyt300Motor::setSpeedRPM(uint16_t speed_rpm)
 {
   // Input speed_rpm is output shaft RPM (after gear reduction)
-  // Need to convert to PWM duty cycle (0-500) for the protocol
+  // Need to convert to PWM duty cycle (0-511) for the protocol (according to protocol documentation)
   
   // Check if speed exceeds maximum
   if (speed_rpm > max_output_rpm_) {
@@ -282,8 +288,8 @@ bool Xyt300Motor::setSpeedRPM(uint16_t speed_rpm)
     return false;
   }
   
-  // Convert output shaft RPM to PWM duty cycle (0-500)
-  // Linear mapping: duty_cycle = (speed_rpm / max_output_rpm) * 500
+  // Convert output shaft RPM to PWM duty cycle (0-511 according to protocol)
+  // Linear mapping: duty_cycle = (speed_rpm / max_output_rpm) * 511
   // Use integer arithmetic with rounding
   uint32_t duty_cycle = (static_cast<uint32_t>(speed_rpm) * MAX_DUTY_CYCLE + max_output_rpm_ / 2) / 
                         static_cast<uint32_t>(max_output_rpm_);
@@ -294,8 +300,8 @@ bool Xyt300Motor::setSpeedRPM(uint16_t speed_rpm)
   }
   
   // Speed setting writes to register 0x005A
-  // According to protocol: send_value = 500 - duty_cycle
-  // Example: duty_cycle 0 -> send 500, duty_cycle 500 -> send 0
+  // According to protocol: send_value = 511 - duty_cycle
+  // Example: duty_cycle 0 -> send 511, duty_cycle 511 -> send 0
   uint16_t send_value = MAX_DUTY_CYCLE - static_cast<uint16_t>(duty_cycle);
   
   // Don't wait for response to improve responsiveness
