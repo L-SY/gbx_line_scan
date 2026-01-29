@@ -23,7 +23,7 @@ def generate_launch_description():
     # Microswitch 参数
     microswitch_device_path_arg = DeclareLaunchArgument(
         'microswitch_device_path',
-        default_value='/dev/ttyUSB0',
+        default_value='/dev/ttyUSB1',
         description='Path to microswitch serial device'
     )
     microswitch_baud_rate_arg = DeclareLaunchArgument(

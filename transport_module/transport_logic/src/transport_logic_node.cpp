@@ -219,8 +219,8 @@ private:
       state.erase(0, 1);
     }
 
-    if (enable_zd_motor_ && state.find("vertical") != std::string::npos) {
-      if (state == "vertical0" || state == "vertical1") {
+    if (enable_zd_motor_ && state.find("vertical_max") != std::string::npos) {
+      if (state == "vertical_max_0" || state == "vertical_max_1") {
         if (state == pending_vertical_state_) {
           vertical_state_count_++;
           if (vertical_state_count_ >= debounce_threshold_) {
@@ -235,8 +235,8 @@ private:
       }
     }
     
-    if (enable_servo_motor_ && state.find("horizontal") != std::string::npos) {
-      if (state == "horizontal0" || state == "horizontal1") {
+    if (enable_servo_motor_ && state.find("horizontal_max") != std::string::npos) {
+      if (state == "horizontal_max_0" || state == "horizontal_max_1") {
         if (state == pending_horizontal_state_) {
           horizontal_state_count_++;
           if (horizontal_state_count_ >= debounce_threshold_) {
@@ -254,7 +254,7 @@ private:
 
   void handleVerticalState(const std::string & state)
   {
-    if (state != "vertical0" && state != "vertical1") {
+    if (state != "vertical_max_0" && state != "vertical_max_1") {
       RCLCPP_DEBUG(this->get_logger(), "Ignoring invalid vertical state: '%s'", state.c_str());
       return;
     }
@@ -269,22 +269,22 @@ private:
     std::string previous_state = current_vertical_state_;
     current_vertical_state_ = state;
 
-    if (state == "vertical0") {
-      if (previous_state == "vertical1") {
+    if (state == "vertical_max_0") {
+      if (previous_state == "vertical_max_1") {
         RCLCPP_INFO(this->get_logger(), "ZD motor left microswitch, stopping (homing complete)");
         if (!motor_->setControlCommand(rs485_interface::ZdMotor::ControlCommand::STOP)) {
           RCLCPP_ERROR(this->get_logger(), "Failed to stop ZD motor: %s", motor_->getLastError().c_str());
         }
       } else {
-        RCLCPP_INFO(this->get_logger(), "ZD motor reversing to find home (vertical0) at %d RPM", reverse_speed_rpm_);
+        RCLCPP_INFO(this->get_logger(), "ZD motor reversing to find home (vertical_max_0) at %d RPM", reverse_speed_rpm_);
         if (!motor_->setSpeedRPM(reverse_speed_rpm_)) {
           RCLCPP_ERROR(this->get_logger(), "Failed to set reverse speed: %s", motor_->getLastError().c_str());
         } else if (!motor_->setControlCommand(rs485_interface::ZdMotor::ControlCommand::REVERSE)) {
           RCLCPP_ERROR(this->get_logger(), "Failed to set reverse command: %s", motor_->getLastError().c_str());
         }
       }
-    } else if (state == "vertical1") {
-      RCLCPP_INFO(this->get_logger(), "ZD motor hit microswitch, forwarding to leave (vertical1) at %d RPM", forward_speed_rpm_);
+    } else if (state == "vertical_max_1") {
+      RCLCPP_INFO(this->get_logger(), "ZD motor hit microswitch, forwarding to leave (vertical_max_1) at %d RPM", forward_speed_rpm_);
       if (!motor_->setSpeedRPM(forward_speed_rpm_)) {
         RCLCPP_ERROR(this->get_logger(), "Failed to set forward speed: %s", motor_->getLastError().c_str());
       } else if (!motor_->setControlCommand(rs485_interface::ZdMotor::ControlCommand::FORWARD)) {
@@ -295,7 +295,7 @@ private:
 
   void handleHorizontalState(const std::string & state)
   {
-    if (state != "horizontal0" && state != "horizontal1") {
+    if (state != "horizontal_max_0" && state != "horizontal_max_1") {
       RCLCPP_DEBUG(this->get_logger(), "Ignoring invalid horizontal state: '%s'", state.c_str());
       return;
     }
@@ -310,15 +310,15 @@ private:
     std::string previous_state = current_horizontal_state_;
     current_horizontal_state_ = state;
 
-    if (state == "horizontal0") {
-      if (previous_state == "horizontal1") {
+    if (state == "horizontal_max_0") {
+      if (previous_state == "horizontal_max_1") {
         RCLCPP_INFO(this->get_logger(), "LC Servo motor left microswitch, stopping (homing complete)");
         servo_motor_->setEnable(rs485_interface::LcServoMotor::EnableState::ENABLE);
         if (!servo_motor_->setDirection(rs485_interface::LcServoMotor::Direction::STOP)) {
           RCLCPP_WARN(this->get_logger(), "Failed to stop LC Servo motor: %s (continuing anyway)", servo_motor_->getLastError().c_str());
         }
       } else {
-        RCLCPP_INFO(this->get_logger(), "LC Servo motor forwarding to find home (horizontal0) at %.1f RPM", servo_forward_speed_rpm_);
+        RCLCPP_INFO(this->get_logger(), "LC Servo motor forwarding to find home (horizontal_max_0) at %.1f RPM", servo_forward_speed_rpm_);
         servo_motor_->setEnable(rs485_interface::LcServoMotor::EnableState::ENABLE);
         if (!servo_motor_->setSpeedRPM(servo_forward_speed_rpm_)) {
           RCLCPP_WARN(this->get_logger(), "Failed to set forward speed: %s (continuing anyway)", servo_motor_->getLastError().c_str());
@@ -327,8 +327,8 @@ private:
           RCLCPP_WARN(this->get_logger(), "Failed to set forward direction: %s (continuing anyway)", servo_motor_->getLastError().c_str());
         }
       }
-    } else if (state == "horizontal1") {
-      RCLCPP_INFO(this->get_logger(), "LC Servo motor hit microswitch, reversing to leave (horizontal1) at %.1f RPM", servo_reverse_speed_rpm_);
+    } else if (state == "horizontal_max_1") {
+      RCLCPP_INFO(this->get_logger(), "LC Servo motor hit microswitch, reversing to leave (horizontal_max_1) at %.1f RPM", servo_reverse_speed_rpm_);
       servo_motor_->setEnable(rs485_interface::LcServoMotor::EnableState::ENABLE);
       if (!servo_motor_->setSpeedRPM(servo_reverse_speed_rpm_)) {
         RCLCPP_WARN(this->get_logger(), "Failed to set reverse speed: %s (continuing anyway)", servo_motor_->getLastError().c_str());
