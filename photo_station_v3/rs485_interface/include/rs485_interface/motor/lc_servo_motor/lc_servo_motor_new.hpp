@@ -155,6 +155,13 @@ public:
   bool initializeSpeedControl();
 
   /**
+   * @brief Set Modbus data format (POC-03)
+   * @param format 0=No parity 2 stop bits, 1=Even parity 1 stop bit, 2=Odd parity 1 stop bit, 3=No parity 1 stop bit
+   * @return true if successful, false otherwise
+   */
+  bool setModbusDataFormat(uint16_t format);
+
+  /**
    * @brief Read a register value (for debugging)
    * @param register_address Register address to read
    * @param value Output parameter for the read value
@@ -170,6 +177,7 @@ private:
   static constexpr uint16_t REG_P10_03 = 0x1003;
   static constexpr uint16_t REG_P10_42 = 0x102A;
   static constexpr uint16_t REG_P0B_00 = 0x0B00;
+  static constexpr uint16_t REG_POC_03 = 0x0C03;  // POC-03: Modbus data format
 
   static constexpr double DEFAULT_ENCODER_RESOLUTION = 10000.0;
 };

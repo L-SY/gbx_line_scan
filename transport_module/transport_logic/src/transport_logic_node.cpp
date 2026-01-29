@@ -6,6 +6,7 @@
 
 #include <memory>
 #include <string>
+#include <mutex>
 
 class TransportLogicNode : public rclcpp::Node
 {
@@ -66,30 +67,41 @@ public:
         default: baud = rs485_interface::RS485Client::BaudRate::BAUD_19200; break;
       }
 
-      rs485_client_ = std::make_shared<rs485_interface::RS485Client>(
-        motor_device_path,
-        baud,
-        rs485_interface::RS485Client::Parity::NONE,
-        1000
-      );
-
-      if (!rs485_client_->open()) {
-        RCLCPP_ERROR(this->get_logger(), "Failed to open ZD Motor RS485 device: %s - %s",
-                     motor_device_path.c_str(), rs485_client_->getLastError().c_str());
-        throw std::runtime_error("Failed to open ZD Motor RS485 device");
-      }
-
-      RCLCPP_INFO(this->get_logger(), "ZD Motor RS485 device opened: %s", motor_device_path.c_str());
-
-      // 创建 ZD motor
-      motor_ = std::make_shared<rs485_interface::ZdMotor>(rs485_client_, motor_slave_address);
-
-      if (!motor_->initialize()) {
-        RCLCPP_WARN(this->get_logger(), "Failed to initialize ZD motor: %s (will continue anyway)",
-                     motor_->getLastError().c_str());
-        RCLCPP_WARN(this->get_logger(), "Motor may still work, but some initialization steps failed");
+      // 检查是否与 LC Servo Motor 使用同一个设备路径
+      std::string servo_path = enable_servo_motor_ ? this->get_parameter("servo_device_path").as_string() : "";
+      bool same_device = enable_servo_motor_ && (motor_device_path == servo_path);
+      
+      if (same_device) {
+        RCLCPP_INFO(this->get_logger(), "ZD Motor and LC Servo Motor share the same device: %s", motor_device_path.c_str());
+        RCLCPP_INFO(this->get_logger(), "Will create shared RS485 client when initializing LC Servo Motor");
+        // 不在这里创建客户端，等 LC Servo Motor 初始化时创建并共享
       } else {
-        RCLCPP_INFO(this->get_logger(), "ZD motor initialized (slave address: %d)", motor_slave_address);
+        // ZD Motor 使用 NONE parity
+        rs485_client_ = std::make_shared<rs485_interface::RS485Client>(
+          motor_device_path,
+          baud,
+          rs485_interface::RS485Client::Parity::NONE,
+          1000
+        );
+
+        if (!rs485_client_->open()) {
+          RCLCPP_ERROR(this->get_logger(), "Failed to open ZD Motor RS485 device: %s - %s",
+                       motor_device_path.c_str(), rs485_client_->getLastError().c_str());
+          throw std::runtime_error("Failed to open ZD Motor RS485 device");
+        }
+
+        RCLCPP_INFO(this->get_logger(), "ZD Motor RS485 device opened: %s", motor_device_path.c_str());
+        
+        // 创建 ZD motor
+        motor_ = std::make_shared<rs485_interface::ZdMotor>(rs485_client_, motor_slave_address);
+
+        if (!motor_->initialize()) {
+          RCLCPP_WARN(this->get_logger(), "Failed to initialize ZD motor: %s (will continue anyway)",
+                       motor_->getLastError().c_str());
+          RCLCPP_WARN(this->get_logger(), "Motor may still work, but some initialization steps failed");
+        } else {
+          RCLCPP_INFO(this->get_logger(), "ZD motor initialized (slave address: %d)", motor_slave_address);
+        }
       }
     } else {
       RCLCPP_INFO(this->get_logger(), "ZD Motor is disabled");
@@ -103,7 +115,7 @@ public:
       servo_forward_speed_rpm_ = this->get_parameter("servo_forward_speed_rpm").as_double();
       servo_reverse_speed_rpm_ = this->get_parameter("servo_reverse_speed_rpm").as_double();
 
-      // 创建 LC Servo Motor 的 RS485 客户端（需要 EVEN parity）
+      // 创建 LC Servo Motor 的 RS485 客户端（使用 NONE parity，假设 POC-03 已配置）
       rs485_interface::RS485Client::BaudRate servo_baud;
       switch (servo_baud_rate) {
         case 2400: servo_baud = rs485_interface::RS485Client::BaudRate::BAUD_2400; break;
@@ -117,21 +129,50 @@ public:
         default: servo_baud = rs485_interface::RS485Client::BaudRate::BAUD_19200; break;
       }
 
-      // LC Servo Motor 需要 EVEN parity
-      servo_rs485_client_ = std::make_shared<rs485_interface::RS485Client>(
-        servo_device_path,
-        servo_baud,
-        rs485_interface::RS485Client::Parity::EVEN,
-        1000
-      );
+      // 检查是否与 ZD Motor 使用同一个设备路径
+      std::string motor_path = enable_zd_motor_ ? this->get_parameter("motor_device_path").as_string() : "";
+      bool same_device = enable_zd_motor_ && (servo_device_path == motor_path);
+      
+      if (same_device && rs485_client_) {
+        // 共享 ZD Motor 已经创建的客户端（都使用 NONE parity）
+        servo_rs485_client_ = rs485_client_;
+        RCLCPP_INFO(this->get_logger(), "Sharing RS485 client with ZD Motor (both use NONE parity)");
+      } else {
+        // 创建 LC Servo Motor 的 RS485 客户端（使用 NONE parity）
+        // 假设 POC-03 已经配置为 NONE parity（3），电机会保存这个设置
+        servo_rs485_client_ = std::make_shared<rs485_interface::RS485Client>(
+          servo_device_path,
+          servo_baud,
+          rs485_interface::RS485Client::Parity::NONE,
+          1000
+        );
 
-      if (!servo_rs485_client_->open()) {
-        RCLCPP_ERROR(this->get_logger(), "Failed to open LC Servo RS485 device: %s - %s",
-                     servo_device_path.c_str(), servo_rs485_client_->getLastError().c_str());
-        throw std::runtime_error("Failed to open LC Servo RS485 device");
+        if (!servo_rs485_client_->open()) {
+          RCLCPP_ERROR(this->get_logger(), "Failed to open LC Servo RS485 device: %s - %s",
+                       servo_device_path.c_str(), servo_rs485_client_->getLastError().c_str());
+          throw std::runtime_error("Failed to open LC Servo RS485 device");
+        }
+
+        RCLCPP_INFO(this->get_logger(), "LC Servo RS485 device opened: %s", servo_device_path.c_str());
+        
+        // 如果 ZD Motor 也需要这个设备但还没有创建客户端，共享这个客户端
+        if (same_device && enable_zd_motor_ && !rs485_client_) {
+          rs485_client_ = servo_rs485_client_;
+          RCLCPP_INFO(this->get_logger(), "ZD Motor will use LC Servo Motor's RS485 client (both use NONE parity)");
+          
+          // 现在创建 ZD Motor（因为客户端已经准备好了）
+          int motor_slave_address = this->get_parameter("motor_slave_address").as_int();
+          motor_ = std::make_shared<rs485_interface::ZdMotor>(rs485_client_, motor_slave_address);
+          
+          if (!motor_->initialize()) {
+            RCLCPP_WARN(this->get_logger(), "Failed to initialize ZD motor: %s (will continue anyway)",
+                         motor_->getLastError().c_str());
+            RCLCPP_WARN(this->get_logger(), "Motor may still work, but some initialization steps failed");
+          } else {
+            RCLCPP_INFO(this->get_logger(), "ZD motor initialized (slave address: %d)", motor_slave_address);
+          }
+        }
       }
-
-      RCLCPP_INFO(this->get_logger(), "LC Servo RS485 device opened: %s", servo_device_path.c_str());
 
       // 创建 LC Servo Motor
       servo_motor_ = std::make_shared<rs485_interface::LcServoMotor>(servo_rs485_client_, servo_slave_address);

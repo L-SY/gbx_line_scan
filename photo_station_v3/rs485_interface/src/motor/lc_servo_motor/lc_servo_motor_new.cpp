@@ -1,4 +1,6 @@
 #include "rs485_interface/motor/lc_servo_motor/lc_servo_motor_new.hpp"
+#include <thread>
+#include <chrono>
 
 namespace rs485_interface
 {
@@ -92,8 +94,55 @@ bool LcServoMotor::readOperatingMode(uint16_t & mode)
   return true;
 }
 
+bool LcServoMotor::setModbusDataFormat(uint16_t format)
+{
+  // POC-03: Modbus data format
+  // 0: No parity, 2 stop bits
+  // 1: Even parity, 1 stop bit (factory default)
+  // 2: Odd parity, 1 stop bit
+  // 3: No parity, 1 stop bit (for NONE parity with 1 stop bit)
+  
+  // Try to set the format
+  if (rs485_client_->writeSingleRegister(slave_address_, REG_POC_03, format)) {
+    // Wait for device to process
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    return true;
+  }
+  
+  // If failed, it might be because the current parity doesn't match
+  // (e.g., motor is in EVEN parity mode but we're using NONE parity)
+  // Try to read the current value first to see if communication works
+  uint16_t current_value = 0;
+  if (readRegister(REG_POC_03, current_value)) {
+    // Communication works, but write failed
+    if (current_value == format) {
+      // Already set to the desired format
+      return true;
+    }
+    setLastError("Failed to set Modbus data format: " + rs485_client_->getLastError());
+    return false;
+  }
+  
+  // Can't even read, parity mismatch likely
+  // Return false but don't set error, let caller handle it
+  setLastError("Failed to communicate with motor (parity mismatch?): " + rs485_client_->getLastError());
+  return false;
+}
+
 bool LcServoMotor::initializeSpeedControl()
 {
+  // First, try to set Modbus data format to NONE parity (format 3)
+  // This allows the motor to work with NONE parity instead of EVEN
+  // If this fails (e.g., motor is still in EVEN parity mode), we'll continue anyway
+  // The motor might already be configured correctly, or we'll need to configure it manually
+  bool format_set = setModbusDataFormat(3);
+  if (!format_set) {
+    // If setting format failed, it's likely because motor is in EVEN parity mode
+    // but we're using NONE parity. Continue anyway - the motor might work
+    // or user needs to configure POC-03 manually first
+  }
+  
+  // Continue with initialization even if format setting failed
   if (!setModbusMode()) {
     setLastError("Failed to set Modbus mode");
     return false;
