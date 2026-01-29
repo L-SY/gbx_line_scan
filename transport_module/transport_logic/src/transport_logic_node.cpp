@@ -210,7 +210,7 @@ public:
     debounce_threshold_ = 3;
 
     // Main state machine framework (start from INIT by default)
-    main_state_ = MainState::INIT;
+    main_state_ = MainState::WORK;
     last_logged_state_ = main_state_;
     logStateEnter(main_state_, "startup");
     init_vertical_done_ = !enable_zd_motor_;
@@ -294,6 +294,8 @@ private:
       work_forwarding_to_vertical_min_ = false;
       work_wait_start_time_ = rclcpp::Time(0, 0, this->get_clock()->get_clock_type());
       work_motor_forward_started_ = false;
+      work_motor_work_waiting_stop_ = false;
+      work_motor_work_stop_time_ = rclcpp::Time(0, 0, this->get_clock()->get_clock_type());
     }
   }
 
@@ -423,13 +425,36 @@ private:
   void tickWork()
   {
     // Only implement requested WORK behavior: run the extra ZD motor (slave id=3) in REVERSE.
-    if (!motor_work_) {
-      // keep going; other WORK behaviors may still use motor_
-    }
-    if (motor_work_ && !motor_work_started_) {
-      setZdMotorSpeedRetry(motor_work_, work_speed_rpm_);
-      setZdMotorCommandRetry(motor_work_, rs485_interface::ZdMotor::ControlCommand::REVERSE);
-      motor_work_started_ = true;
+    // Start motor_work_ when vertical_min is 1, continue for 2s after vertical_min becomes 0, then stop.
+    if (motor_work_) {
+      const auto now = this->get_clock()->now();
+      
+      // Check if 2s delay after vertical_min_0 is complete
+      if (work_motor_work_waiting_stop_) {
+        const double elapsed = (now - work_motor_work_stop_time_).seconds();
+        if (elapsed >= 2.0) {
+          RCLCPP_INFO(this->get_logger(), "WORK: 2s elapsed after vertical_min_0, stopping motor_work_");
+          setZdMotorCommandRetry(motor_work_, rs485_interface::ZdMotor::ControlCommand::STOP);
+          motor_work_started_ = false;
+          work_motor_work_waiting_stop_ = false;
+        }
+      }
+      
+      // Start motor_work_ when vertical_min becomes 1
+      if (work_vertical_min_state_ == "vertical_min_1" && !motor_work_started_ && !work_motor_work_waiting_stop_) {
+        RCLCPP_INFO(this->get_logger(), "WORK: vertical_min is 1, starting motor_work_");
+        setZdMotorSpeedRetry(motor_work_, work_speed_rpm_);
+        setZdMotorCommandRetry(motor_work_, rs485_interface::ZdMotor::ControlCommand::REVERSE);
+        motor_work_started_ = true;
+        work_motor_work_waiting_stop_ = false;
+      }
+      
+      // When vertical_min becomes 0, start 2s countdown
+      if (work_vertical_min_state_ == "vertical_min_0" && motor_work_started_ && !work_motor_work_waiting_stop_) {
+        RCLCPP_INFO(this->get_logger(), "WORK: vertical_min is 0, motor_work_ will stop after 2s");
+        work_motor_work_waiting_stop_ = true;
+        work_motor_work_stop_time_ = now;
+      }
     }
 
     // WORK addition:
@@ -803,6 +828,10 @@ private:
   bool work_forwarding_to_vertical_min_{false};
   rclcpp::Time work_wait_start_time_{0, 0, RCL_ROS_TIME};
   bool work_motor_forward_started_{false};
+
+  // WORK: motor_work_ stop delay after vertical_min_0
+  bool work_motor_work_waiting_stop_{false};
+  rclcpp::Time work_motor_work_stop_time_{0, 0, RCL_ROS_TIME};
 
   MainState main_state_;
   MainState last_logged_state_;
