@@ -1,5 +1,7 @@
 #include "rclcpp/rclcpp.hpp"
 #include "std_msgs/msg/string.hpp"
+#include "std_msgs/msg/bool.hpp"
+#include "std_msgs/msg/float64.hpp"
 #include "rs485_interface/motor/zd_motor/zd_motor_new.hpp"
 #include "rs485_interface/motor/lc_servo_motor/lc_servo_motor_new.hpp"
 #include "rs485_interface/common/rs485_client.hpp"
@@ -191,6 +193,86 @@ public:
       std::bind(&TransportLogicNode::microswitchCallback, this, std::placeholders::_1)
     );
 
+    // Publishers for status
+    state_machine_state_pub_ = this->create_publisher<std_msgs::msg::String>(
+      "transport_logic/state_machine_state", 10);
+    microswitch_status_pub_ = this->create_publisher<std_msgs::msg::String>(
+      "transport_logic/microswitch_status", 10);
+    vertical_max_pub_ = this->create_publisher<std_msgs::msg::String>(
+      "transport_logic/vertical_max", 10);
+    vertical_min_pub_ = this->create_publisher<std_msgs::msg::String>(
+      "transport_logic/vertical_min", 10);
+    horizontal_max_pub_ = this->create_publisher<std_msgs::msg::String>(
+      "transport_logic/horizontal_max", 10);
+    horizontal_min_pub_ = this->create_publisher<std_msgs::msg::String>(
+      "transport_logic/horizontal_min", 10);
+    zd_motor_state_pub_ = this->create_publisher<std_msgs::msg::String>(
+      "transport_logic/zd_motor_state", 10);
+    servo_motor_state_pub_ = this->create_publisher<std_msgs::msg::String>(
+      "transport_logic/servo_motor_state", 10);
+    motor_work_state_pub_ = this->create_publisher<std_msgs::msg::String>(
+      "transport_logic/motor_work_state", 10);
+
+    // Subscribers for manual control
+    manual_mode_sub_ = this->create_subscription<std_msgs::msg::Bool>(
+      "transport_logic/manual_mode",
+      10,
+      std::bind(&TransportLogicNode::manualModeCallback, this, std::placeholders::_1)
+    );
+    state_machine_set_state_sub_ = this->create_subscription<std_msgs::msg::String>(
+      "transport_logic/set_state",
+      10,
+      std::bind(&TransportLogicNode::setStateCallback, this, std::placeholders::_1)
+    );
+    confirm_wait_sub_ = this->create_subscription<std_msgs::msg::Bool>(
+      "transport_logic/confirm_wait",
+      10,
+      std::bind(&TransportLogicNode::confirmWaitCallback, this, std::placeholders::_1)
+    );
+    zd_motor_manual_speed_sub_ = this->create_subscription<std_msgs::msg::Float64>(
+      "transport_logic/zd_motor/manual_speed",
+      10,
+      std::bind(&TransportLogicNode::zdMotorManualSpeedCallback, this, std::placeholders::_1)
+    );
+    zd_motor_manual_direction_sub_ = this->create_subscription<std_msgs::msg::String>(
+      "transport_logic/zd_motor/manual_direction",
+      10,
+      std::bind(&TransportLogicNode::zdMotorManualDirectionCallback, this, std::placeholders::_1)
+    );
+    servo_motor_manual_speed_sub_ = this->create_subscription<std_msgs::msg::Float64>(
+      "transport_logic/servo_motor/manual_speed",
+      10,
+      std::bind(&TransportLogicNode::servoMotorManualSpeedCallback, this, std::placeholders::_1)
+    );
+    servo_motor_manual_direction_sub_ = this->create_subscription<std_msgs::msg::String>(
+      "transport_logic/servo_motor/manual_direction",
+      10,
+      std::bind(&TransportLogicNode::servoMotorManualDirectionCallback, this, std::placeholders::_1)
+    );
+    servo_motor_manual_enable_sub_ = this->create_subscription<std_msgs::msg::Bool>(
+      "transport_logic/servo_motor/manual_enable",
+      10,
+      std::bind(&TransportLogicNode::servoMotorManualEnableCallback, this, std::placeholders::_1)
+    );
+
+    // Status publishing timer (10 Hz)
+    using namespace std::chrono_literals;
+    status_timer_ = this->create_wall_timer(
+      100ms,
+      std::bind(&TransportLogicNode::publishStatus, this)
+    );
+
+    // Initialize manual mode and motor state tracking (default to manual mode)
+    manual_mode_ = true;
+    zd_motor_current_speed_ = 0;
+    zd_motor_current_direction_ = "STOP";
+    servo_motor_current_speed_ = 0.0;
+    servo_motor_current_direction_ = "STOP";
+    servo_motor_enabled_ = false;
+    motor_work_current_speed_ = 0;
+    motor_work_current_direction_ = "STOP";
+    last_microswitch_status_ = "";
+
     RCLCPP_INFO(this->get_logger(), "Subscribed to microswitch topic: %s", microswitch_topic.c_str());
     if (enable_zd_motor_) {
       RCLCPP_INFO(this->get_logger(), "ZD Motor - Reverse speed: %d RPM, Forward speed: %d RPM",
@@ -210,7 +292,7 @@ public:
     debounce_threshold_ = 3;
 
     // Main state machine framework (start from INIT by default)
-    main_state_ = MainState::WORK;
+    main_state_ = MainState::INIT;
     last_logged_state_ = main_state_;
     logStateEnter(main_state_, "startup");
     init_vertical_done_ = !enable_zd_motor_;
@@ -247,6 +329,7 @@ private:
   enum class MainState
   {
     INIT,
+    WAIT,
     PRE,
     WORK,
     FINISH
@@ -256,6 +339,7 @@ private:
   {
     switch (s) {
       case MainState::INIT: return "INIT";
+      case MainState::WAIT: return "WAIT";
       case MainState::PRE: return "PRE";
       case MainState::WORK: return "WORK";
       case MainState::FINISH: return "FINISH";
@@ -280,6 +364,8 @@ private:
     if (main_state_ == MainState::INIT) {
       init_vertical_done_ = !enable_zd_motor_;
       init_horizontal_done_ = !enable_servo_motor_;
+    } else if (main_state_ == MainState::WAIT) {
+      // WAIT state: waiting for user confirmation to proceed to PRE
     } else if (main_state_ == MainState::PRE) {
       pre_vertical_done_ = !enable_zd_motor_;
       pre_horizontal_done_ = !enable_servo_motor_;
@@ -313,6 +399,13 @@ private:
     }
     if (!success) {
       RCLCPP_WARN(this->get_logger(), "Failed to set ZD motor speed to %d RPM after 3 retries", speed_rpm);
+    } else {
+      // Update state tracking
+      if (motor == motor_) {
+        zd_motor_current_speed_ = speed_rpm;
+      } else if (motor == motor_work_) {
+        motor_work_current_speed_ = speed_rpm;
+      }
     }
     return success;
   }
@@ -331,6 +424,21 @@ private:
     }
     if (!success) {
       RCLCPP_WARN(this->get_logger(), "Failed to set ZD motor command after 3 retries");
+    } else {
+      // Update state tracking
+      std::string dir_str;
+      if (cmd == rs485_interface::ZdMotor::ControlCommand::FORWARD) {
+        dir_str = "FORWARD";
+      } else if (cmd == rs485_interface::ZdMotor::ControlCommand::REVERSE) {
+        dir_str = "REVERSE";
+      } else {
+        dir_str = "STOP";
+      }
+      if (motor == motor_) {
+        zd_motor_current_direction_ = dir_str;
+      } else if (motor == motor_work_) {
+        motor_work_current_direction_ = dir_str;
+      }
     }
     return success;
   }
@@ -349,6 +457,8 @@ private:
     }
     if (!success) {
       RCLCPP_WARN(this->get_logger(), "Failed to set servo speed to %.1f RPM after 3 retries", speed_rpm);
+    } else {
+      servo_motor_current_speed_ = speed_rpm;
     }
     return success;
   }
@@ -367,6 +477,14 @@ private:
     }
     if (!success) {
       RCLCPP_WARN(this->get_logger(), "Failed to set servo direction after 3 retries");
+    } else {
+      if (dir == rs485_interface::LcServoMotor::Direction::FORWARD) {
+        servo_motor_current_direction_ = "FORWARD";
+      } else if (dir == rs485_interface::LcServoMotor::Direction::REVERSE) {
+        servo_motor_current_direction_ = "REVERSE";
+      } else {
+        servo_motor_current_direction_ = "STOP";
+      }
     }
     return success;
   }
@@ -380,6 +498,7 @@ private:
         std::this_thread::sleep_for(std::chrono::milliseconds(20));
       }
     }
+    servo_motor_enabled_ = (enable == rs485_interface::LcServoMotor::EnableState::ENABLE);
   }
 
   void tick()
@@ -389,9 +508,17 @@ private:
       last_logged_state_ = main_state_;
     }
 
+    // Skip state machine logic if in manual mode
+    if (manual_mode_) {
+      return;
+    }
+
     switch (main_state_) {
       case MainState::INIT:
         tickInit();
+        break;
+      case MainState::WAIT:
+        tickWait();
         break;
       case MainState::PRE:
         tickPre();
@@ -407,13 +534,219 @@ private:
     }
   }
 
+  void publishStatus()
+  {
+    // Publish state machine state
+    auto state_msg = std_msgs::msg::String();
+    state_msg.data = toString(main_state_);
+    state_machine_state_pub_->publish(state_msg);
+
+    // Publish microswitch status
+    auto microswitch_msg = std_msgs::msg::String();
+    microswitch_msg.data = last_microswitch_status_;
+    microswitch_status_pub_->publish(microswitch_msg);
+
+    // Publish individual microswitch states
+    auto vertical_max_msg = std_msgs::msg::String();
+    vertical_max_msg.data = current_vertical_state_.empty() ? "unknown" : current_vertical_state_;
+    vertical_max_pub_->publish(vertical_max_msg);
+
+    auto vertical_min_msg = std_msgs::msg::String();
+    // Use work_vertical_min_state_ if in WORK state, otherwise use current_vertical_min_state_
+    std::string vertical_min_state = (main_state_ == MainState::WORK && !work_vertical_min_state_.empty()) ?
+                                     work_vertical_min_state_ : current_vertical_min_state_;
+    vertical_min_msg.data = vertical_min_state.empty() ? "unknown" : vertical_min_state;
+    vertical_min_pub_->publish(vertical_min_msg);
+
+    auto horizontal_max_msg = std_msgs::msg::String();
+    horizontal_max_msg.data = current_horizontal_state_.empty() ? "unknown" : current_horizontal_state_;
+    horizontal_max_pub_->publish(horizontal_max_msg);
+
+    auto horizontal_min_msg = std_msgs::msg::String();
+    horizontal_min_msg.data = current_horizontal_min_state_.empty() ? "unknown" : current_horizontal_min_state_;
+    horizontal_min_pub_->publish(horizontal_min_msg);
+
+    // Publish ZD motor state (format: "speed,direction")
+    auto zd_motor_msg = std_msgs::msg::String();
+    zd_motor_msg.data = std::to_string(zd_motor_current_speed_) + "," + zd_motor_current_direction_;
+    zd_motor_state_pub_->publish(zd_motor_msg);
+
+    // Publish servo motor state (format: "speed,direction,enabled")
+    auto servo_motor_msg = std_msgs::msg::String();
+    servo_motor_msg.data = std::to_string(servo_motor_current_speed_) + "," + 
+                          servo_motor_current_direction_ + "," + 
+                          (servo_motor_enabled_ ? "true" : "false");
+    servo_motor_state_pub_->publish(servo_motor_msg);
+
+    // Publish motor_work state (format: "speed,direction")
+    auto motor_work_msg = std_msgs::msg::String();
+    motor_work_msg.data = std::to_string(motor_work_current_speed_) + "," + motor_work_current_direction_;
+    motor_work_state_pub_->publish(motor_work_msg);
+  }
+
+  void manualModeCallback(const std_msgs::msg::Bool::SharedPtr msg)
+  {
+    manual_mode_ = msg->data;
+    if (manual_mode_) {
+      RCLCPP_INFO(this->get_logger(), "Manual mode enabled - state machine disabled");
+    } else {
+      RCLCPP_INFO(this->get_logger(), "Manual mode disabled - state machine enabled");
+    }
+  }
+
+  void setStateCallback(const std_msgs::msg::String::SharedPtr msg)
+  {
+    std::string state_str = msg->data;
+    // Trim whitespace
+    while (!state_str.empty() && (state_str.back() == '\n' || state_str.back() == '\r' || state_str.back() == ' ')) {
+      state_str.pop_back();
+    }
+    while (!state_str.empty() && state_str.front() == ' ') {
+      state_str.erase(0, 1);
+    }
+
+    MainState new_state;
+    if (state_str == "INIT") {
+      new_state = MainState::INIT;
+    } else if (state_str == "WAIT") {
+      new_state = MainState::WAIT;
+    } else if (state_str == "PRE") {
+      new_state = MainState::PRE;
+    } else if (state_str == "WORK") {
+      new_state = MainState::WORK;
+    } else if (state_str == "FINISH") {
+      new_state = MainState::FINISH;
+    } else {
+      RCLCPP_WARN(this->get_logger(), "Invalid state requested: %s", state_str.c_str());
+      return;
+    }
+
+    setMainState(new_state, "manual_set");
+    RCLCPP_INFO(this->get_logger(), "State manually set to: %s", state_str.c_str());
+  }
+
+  void confirmWaitCallback(const std_msgs::msg::Bool::SharedPtr msg)
+  {
+    if (msg->data && main_state_ == MainState::WAIT) {
+      setMainState(MainState::PRE, "user_confirmed");
+      RCLCPP_INFO(this->get_logger(), "WAIT state confirmed, transitioning to PRE");
+    }
+  }
+
+  void zdMotorManualSpeedCallback(const std_msgs::msg::Float64::SharedPtr msg)
+  {
+    if (!manual_mode_ || !enable_zd_motor_ || !motor_) {
+      return;
+    }
+    int speed = static_cast<int>(msg->data);
+    zd_motor_current_speed_ = speed;
+    setZdMotorSpeedRetry(motor_, speed);
+    RCLCPP_INFO(this->get_logger(), "ZD Motor manual speed set to: %d RPM", speed);
+  }
+
+  void zdMotorManualDirectionCallback(const std_msgs::msg::String::SharedPtr msg)
+  {
+    if (!manual_mode_ || !enable_zd_motor_ || !motor_) {
+      return;
+    }
+    std::string dir_str = msg->data;
+    // Trim whitespace
+    while (!dir_str.empty() && (dir_str.back() == '\n' || dir_str.back() == '\r' || dir_str.back() == ' ')) {
+      dir_str.pop_back();
+    }
+    while (!dir_str.empty() && dir_str.front() == ' ') {
+      dir_str.erase(0, 1);
+    }
+
+    rs485_interface::ZdMotor::ControlCommand cmd;
+    if (dir_str == "FORWARD") {
+      cmd = rs485_interface::ZdMotor::ControlCommand::FORWARD;
+      zd_motor_current_direction_ = "FORWARD";
+    } else if (dir_str == "REVERSE") {
+      cmd = rs485_interface::ZdMotor::ControlCommand::REVERSE;
+      zd_motor_current_direction_ = "REVERSE";
+    } else if (dir_str == "STOP") {
+      cmd = rs485_interface::ZdMotor::ControlCommand::STOP;
+      zd_motor_current_direction_ = "STOP";
+    } else {
+      RCLCPP_WARN(this->get_logger(), "Invalid ZD motor direction: %s", dir_str.c_str());
+      return;
+    }
+
+    setZdMotorCommandRetry(motor_, cmd);
+    RCLCPP_INFO(this->get_logger(), "ZD Motor manual direction set to: %s", dir_str.c_str());
+  }
+
+  void servoMotorManualSpeedCallback(const std_msgs::msg::Float64::SharedPtr msg)
+  {
+    if (!manual_mode_ || !enable_servo_motor_ || !servo_motor_) {
+      return;
+    }
+    double speed = msg->data;
+    servo_motor_current_speed_ = speed;
+    setServoSpeedRetry(servo_motor_, speed);
+    RCLCPP_INFO(this->get_logger(), "Servo Motor manual speed set to: %.1f RPM", speed);
+  }
+
+  void servoMotorManualDirectionCallback(const std_msgs::msg::String::SharedPtr msg)
+  {
+    if (!manual_mode_ || !enable_servo_motor_ || !servo_motor_) {
+      return;
+    }
+    std::string dir_str = msg->data;
+    // Trim whitespace
+    while (!dir_str.empty() && (dir_str.back() == '\n' || dir_str.back() == '\r' || dir_str.back() == ' ')) {
+      dir_str.pop_back();
+    }
+    while (!dir_str.empty() && dir_str.front() == ' ') {
+      dir_str.erase(0, 1);
+    }
+
+    rs485_interface::LcServoMotor::Direction dir;
+    if (dir_str == "FORWARD") {
+      dir = rs485_interface::LcServoMotor::Direction::FORWARD;
+      servo_motor_current_direction_ = "FORWARD";
+    } else if (dir_str == "REVERSE") {
+      dir = rs485_interface::LcServoMotor::Direction::REVERSE;
+      servo_motor_current_direction_ = "REVERSE";
+    } else if (dir_str == "STOP") {
+      dir = rs485_interface::LcServoMotor::Direction::STOP;
+      servo_motor_current_direction_ = "STOP";
+    } else {
+      RCLCPP_WARN(this->get_logger(), "Invalid Servo motor direction: %s", dir_str.c_str());
+      return;
+    }
+
+    setServoDirectionRetry(servo_motor_, dir);
+    RCLCPP_INFO(this->get_logger(), "Servo Motor manual direction set to: %s", dir_str.c_str());
+  }
+
+  void servoMotorManualEnableCallback(const std_msgs::msg::Bool::SharedPtr msg)
+  {
+    if (!manual_mode_ || !enable_servo_motor_ || !servo_motor_) {
+      return;
+    }
+    bool enable = msg->data;
+    servo_motor_enabled_ = enable;
+    rs485_interface::LcServoMotor::EnableState state = enable ? 
+      rs485_interface::LcServoMotor::EnableState::ENABLE : 
+      rs485_interface::LcServoMotor::EnableState::DISABLE;
+    setServoEnableRetry(servo_motor_, state);
+    RCLCPP_INFO(this->get_logger(), "Servo Motor manual enable set to: %s", enable ? "true" : "false");
+  }
+
   // Framework placeholders: keep empty for now (no internal contents yet)
   void tickInit()
   {
-    // Auto transition: INIT -> PRE when homing is complete.
+    // Auto transition: INIT -> WAIT when homing is complete.
     if (init_vertical_done_ && init_horizontal_done_) {
-      setMainState(MainState::PRE, "init complete");
+      setMainState(MainState::WAIT, "init complete");
     }
+  }
+  void tickWait()
+  {
+    // WAIT state: do nothing, wait for user confirmation via topic
+    // Transition to PRE is handled by confirmWaitCallback
   }
   void tickPre()
   {
@@ -501,12 +834,21 @@ private:
 
   void microswitchCallback(const std_msgs::msg::String::SharedPtr msg)
   {
+    std::string state = msg->data;
+    
+    // Update last microswitch status for publishing
+    last_microswitch_status_ = state;
+
     // Only process microswitch-driven motor logic in INIT / PRE / WORK states.
+    // WAIT state doesn't process microswitch (waiting for user confirmation)
     if (main_state_ != MainState::INIT && main_state_ != MainState::PRE && main_state_ != MainState::WORK) {
       return;
     }
 
-    std::string state = msg->data;
+    // Skip state machine logic if in manual mode
+    if (manual_mode_) {
+      return;
+    }
     
     while (!state.empty() && (state.back() == '\n' || state.back() == '\r' || state.back() == ' ')) {
       state.pop_back();
@@ -784,6 +1126,41 @@ private:
   std::shared_ptr<rs485_interface::RS485Client> servo_rs485_client_;
   std::shared_ptr<rs485_interface::LcServoMotor> servo_motor_;
   rclcpp::Subscription<std_msgs::msg::String>::SharedPtr microswitch_sub_;
+
+  // Publishers
+  rclcpp::Publisher<std_msgs::msg::String>::SharedPtr state_machine_state_pub_;
+  rclcpp::Publisher<std_msgs::msg::String>::SharedPtr microswitch_status_pub_;
+  rclcpp::Publisher<std_msgs::msg::String>::SharedPtr vertical_max_pub_;
+  rclcpp::Publisher<std_msgs::msg::String>::SharedPtr vertical_min_pub_;
+  rclcpp::Publisher<std_msgs::msg::String>::SharedPtr horizontal_max_pub_;
+  rclcpp::Publisher<std_msgs::msg::String>::SharedPtr horizontal_min_pub_;
+  rclcpp::Publisher<std_msgs::msg::String>::SharedPtr zd_motor_state_pub_;
+  rclcpp::Publisher<std_msgs::msg::String>::SharedPtr servo_motor_state_pub_;
+  rclcpp::Publisher<std_msgs::msg::String>::SharedPtr motor_work_state_pub_;
+
+  // Subscribers for manual control
+  rclcpp::Subscription<std_msgs::msg::Bool>::SharedPtr manual_mode_sub_;
+  rclcpp::Subscription<std_msgs::msg::String>::SharedPtr state_machine_set_state_sub_;
+  rclcpp::Subscription<std_msgs::msg::Bool>::SharedPtr confirm_wait_sub_;
+  rclcpp::Subscription<std_msgs::msg::Float64>::SharedPtr zd_motor_manual_speed_sub_;
+  rclcpp::Subscription<std_msgs::msg::String>::SharedPtr zd_motor_manual_direction_sub_;
+  rclcpp::Subscription<std_msgs::msg::Float64>::SharedPtr servo_motor_manual_speed_sub_;
+  rclcpp::Subscription<std_msgs::msg::String>::SharedPtr servo_motor_manual_direction_sub_;
+  rclcpp::Subscription<std_msgs::msg::Bool>::SharedPtr servo_motor_manual_enable_sub_;
+
+  // Status publishing timer
+  rclcpp::TimerBase::SharedPtr status_timer_;
+
+  // Manual mode and state tracking
+  bool manual_mode_;
+  int zd_motor_current_speed_;
+  std::string zd_motor_current_direction_;
+  double servo_motor_current_speed_;
+  std::string servo_motor_current_direction_;
+  bool servo_motor_enabled_;
+  int motor_work_current_speed_;
+  std::string motor_work_current_direction_;
+  std::string last_microswitch_status_;
   
   int reverse_speed_rpm_;
   int forward_speed_rpm_;
