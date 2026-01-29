@@ -23,7 +23,7 @@ def generate_launch_description():
     # Microswitch 参数
     microswitch_device_path_arg = DeclareLaunchArgument(
         'microswitch_device_path',
-        default_value='/dev/ttyUSB1',
+        default_value='/dev/ttyUSB0',
         description='Path to microswitch serial device'
     )
     microswitch_baud_rate_arg = DeclareLaunchArgument(
@@ -35,7 +35,7 @@ def generate_launch_description():
     # ZD Motor 参数
     motor_device_path_arg = DeclareLaunchArgument(
         'motor_device_path',
-        default_value='/dev/ttyACM1',
+        default_value='/dev/ttyACM0',
         description='Path to ZD motor RS485 device'
     )
     motor_baud_rate_arg = DeclareLaunchArgument(
@@ -64,7 +64,7 @@ def generate_launch_description():
     # LC Servo Motor 参数
     servo_device_path_arg = DeclareLaunchArgument(
         'servo_device_path',
-        default_value='/dev/ttyACM1',
+        default_value='/dev/ttyACM0',
         description='Path to LC Servo motor RS485 device'
     )
     servo_baud_rate_arg = DeclareLaunchArgument(

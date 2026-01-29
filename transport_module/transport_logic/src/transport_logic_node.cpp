@@ -284,8 +284,7 @@ private:
       pre_vertical_done_ = !enable_zd_motor_;
       pre_horizontal_done_ = !enable_servo_motor_;
       pre_vertical_reversing_back_ = false;
-      pre_vertical_extra_lowering_ = false;
-      pre_vertical_min0_time_ = rclcpp::Time(0, 0, this->get_clock()->get_clock_type());
+      pre_horizontal_reversing_back_ = false;
     } else if (main_state_ == MainState::WORK) {
       motor_work_started_ = false;
       work_vertical_min_state_.clear();
@@ -416,19 +415,6 @@ private:
   }
   void tickPre()
   {
-    // Check if extra lowering phase (1s after reaching MIN_0) is complete
-    if (pre_vertical_extra_lowering_ && enable_zd_motor_ && motor_) {
-      const auto now = this->get_clock()->now();
-      const double elapsed = (now - pre_vertical_min0_time_).seconds();
-      if (elapsed >= 1.0) {
-        RCLCPP_INFO(this->get_logger(), "PRE: 1s extra lowering complete, stopping ZD motor and marking PRE done");
-        setZdMotorCommandRetry(motor_, rs485_interface::ZdMotor::ControlCommand::STOP);
-        pre_vertical_done_ = true;
-        pre_vertical_extra_lowering_ = false;
-        pre_vertical_reversing_back_ = false;
-      }
-    }
-
     // Auto transition: PRE -> WORK when MIN positioning is complete.
     if (pre_vertical_done_ && pre_horizontal_done_) {
       setMainState(MainState::WORK, "pre complete");
@@ -662,14 +648,12 @@ private:
         setZdMotorCommandRetry(motor_, rs485_interface::ZdMotor::ControlCommand::REVERSE);
       }
     } else {  // vertical_min_0
-      if (pre_vertical_reversing_back_ && !pre_vertical_extra_lowering_) {
-        // Reached MIN_0 after reversing back: continue REVERSE for 1s to go lower
-        RCLCPP_INFO(this->get_logger(), "ZD motor reached MIN_0 after reversing back, continuing REVERSE for 1s to go lower");
-        pre_vertical_extra_lowering_ = true;
-        pre_vertical_min0_time_ = this->get_clock()->now();
-        // Keep REVERSE running (already running, no need to send command again)
-      } else if (pre_vertical_extra_lowering_) {
-        // Already in extra lowering phase, keep REVERSE running (handled in tickPre)
+      if (pre_vertical_reversing_back_) {
+        // Reached MIN_0 after reversing back: STOP and mark done
+        RCLCPP_INFO(this->get_logger(), "ZD motor reached MIN_0 after reversing back, stopping and marking PRE done");
+        setZdMotorCommandRetry(motor_, rs485_interface::ZdMotor::ControlCommand::STOP);
+        pre_vertical_done_ = true;
+        pre_vertical_reversing_back_ = false;
       } else {
         // Initial state: moving to MIN using FORWARD
         RCLCPP_INFO(this->get_logger(), "ZD motor moving to MIN (FORWARD) at %d RPM", forward_speed_rpm_);
@@ -738,17 +722,32 @@ private:
       return;
     }
 
-    // PRE rule: go to MIN, stop immediately when hit.
+    // PRE rule: go to MIN using REVERSE, when hit MIN_1, STOP then FORWARD back to MIN_0, then STOP and mark done.
     // Direction note (user confirmed): Servo goes to MIN using REVERSE.
     setServoEnableRetry(servo_motor_, rs485_interface::LcServoMotor::EnableState::ENABLE);
     if (state == "horizontal_min_1") {
-      RCLCPP_INFO(this->get_logger(), "LC Servo reached MIN microswitch, stopping");
-      pre_horizontal_done_ = true;
-      setServoDirectionRetry(servo_motor_, rs485_interface::LcServoMotor::Direction::STOP);
+      if (!pre_horizontal_reversing_back_) {
+        // First time reaching MIN_1: STOP, then start forwarding back
+        RCLCPP_INFO(this->get_logger(), "LC Servo reached MIN microswitch, stopping then forwarding back");
+        setServoDirectionRetry(servo_motor_, rs485_interface::LcServoMotor::Direction::STOP);
+        pre_horizontal_reversing_back_ = true;
+        // Start forwarding back to MIN_0
+        setServoSpeedRetry(servo_motor_, servo_forward_speed_rpm_);
+        setServoDirectionRetry(servo_motor_, rs485_interface::LcServoMotor::Direction::FORWARD);
+      }
     } else {  // horizontal_min_0
-      RCLCPP_INFO(this->get_logger(), "LC Servo moving to MIN (REVERSE) at %.1f RPM", servo_reverse_speed_rpm_);
-      setServoSpeedRetry(servo_motor_, servo_reverse_speed_rpm_);
-      setServoDirectionRetry(servo_motor_, rs485_interface::LcServoMotor::Direction::REVERSE);
+      if (pre_horizontal_reversing_back_) {
+        // Reached MIN_0 after forwarding back: STOP and mark done
+        RCLCPP_INFO(this->get_logger(), "LC Servo reached MIN_0 after forwarding back, stopping and marking PRE done");
+        setServoDirectionRetry(servo_motor_, rs485_interface::LcServoMotor::Direction::STOP);
+        pre_horizontal_done_ = true;
+        pre_horizontal_reversing_back_ = false;
+      } else {
+        // Initial state: moving to MIN using REVERSE
+        RCLCPP_INFO(this->get_logger(), "LC Servo moving to MIN (REVERSE) at %.1f RPM", servo_reverse_speed_rpm_);
+        setServoSpeedRetry(servo_motor_, servo_reverse_speed_rpm_);
+        setServoDirectionRetry(servo_motor_, rs485_interface::LcServoMotor::Direction::REVERSE);
+      }
     }
   }
 
@@ -791,8 +790,7 @@ private:
   bool pre_vertical_done_{false};
   bool pre_horizontal_done_{false};
   bool pre_vertical_reversing_back_{false};  // Flag: reached MIN_1, now reversing back to MIN_0
-  bool pre_vertical_extra_lowering_{false};  // Flag: reached MIN_0, now continuing REVERSE for 1s to go lower
-  rclcpp::Time pre_vertical_min0_time_{0, 0, RCL_ROS_TIME};  // Time when MIN_0 was reached
+  bool pre_horizontal_reversing_back_{false};  // Flag: reached MIN_1, now forwarding back to MIN_0
 
   // WORK one-shot command flag (avoid spamming RS485)
   bool motor_work_started_{false};
