@@ -20,7 +20,7 @@ transport_logic_node:
     
     # LC Servo Motor 速度配置 (RPM)
     servo_forward_speed_rpm: 50.0
-    servo_reverse_speed_rpm: 150.0
+    servo_reverse_speed_rpm: 50.0
     
     # Microswitch 话题
     microswitch_topic: "/microswitch/data"
