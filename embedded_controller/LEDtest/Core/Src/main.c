@@ -90,9 +90,15 @@ int main(void)
   MX_GPIO_Init();
   MX_USART2_UART_Init();
   /* USER CODE BEGIN 2 */
-  GPIO_PinState last_pb8_state = GPIO_PIN_SET;  // 记录上一次PB8的状态
-  GPIO_PinState last_pb9_state = GPIO_PIN_SET;  // 记录上一次PB9的状态
-  GPIO_PinState last_pc13_state = GPIO_PIN_SET;  // 记录上一次PC13的状态
+  // 引脚对应关系（按下=低电平）:
+  // PB6 (switch4) -> horizontal_min
+  // PB7 (switch3) -> vertical_min
+  // PB8 (switch1) -> vertical_max
+  // PB9 (switch2) -> horizontal_max
+  GPIO_PinState last_horizontal_min_state = GPIO_PIN_SET;
+  GPIO_PinState last_vertical_min_state = GPIO_PIN_SET;
+  GPIO_PinState last_vertical_max_state = GPIO_PIN_SET;
+  GPIO_PinState last_horizontal_max_state = GPIO_PIN_SET;
 
   /* USER CODE END 2 */
 
@@ -103,71 +109,117 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-    // 读取 PB8 和 PB9 的状态
-    GPIO_PinState pb8_state = HAL_GPIO_ReadPin(switch1_GPIO_Port, switch1_Pin);
-    GPIO_PinState pb9_state = HAL_GPIO_ReadPin(switch2_GPIO_Port, switch2_Pin);
+    // 读取 4 个开关状态（按下=低电平）
+    GPIO_PinState horizontal_min_state = HAL_GPIO_ReadPin(switch4_GPIO_Port, switch4_Pin); // PB6
+    GPIO_PinState vertical_min_state = HAL_GPIO_ReadPin(switch3_GPIO_Port, switch3_Pin);   // PB7
+    GPIO_PinState vertical_max_state = HAL_GPIO_ReadPin(switch1_GPIO_Port, switch1_Pin);   // PB8
+    GPIO_PinState horizontal_max_state = HAL_GPIO_ReadPin(switch2_GPIO_Port, switch2_Pin); // PB9
     
-    // 当 PB8 或 PB9 任何一个为低电平时，PC13 拉低；否则拉高
-    GPIO_PinState pc13_state;
-    if (pb8_state == GPIO_PIN_RESET || pb9_state == GPIO_PIN_RESET)
+    // 当任意一个开关为低电平时，PC13 拉低；否则拉高
+    if (horizontal_min_state == GPIO_PIN_RESET ||
+        vertical_min_state == GPIO_PIN_RESET ||
+        vertical_max_state == GPIO_PIN_RESET ||
+        horizontal_max_state == GPIO_PIN_RESET)
     {
-      pc13_state = GPIO_PIN_RESET;  // 拉低
       HAL_GPIO_WritePin(GPIOC, GPIO_PIN_13, GPIO_PIN_RESET);
     }
     else
     {
-      pc13_state = GPIO_PIN_SET;  // 拉高
       HAL_GPIO_WritePin(GPIOC, GPIO_PIN_13, GPIO_PIN_SET);
     }
     
-    // 处理 PB8 的状态变化和持续输出
-    if (pb8_state != last_pb8_state)
+    // 处理 horizontal_min 的状态变化和持续输出
+    if (horizontal_min_state != last_horizontal_min_state)
     {
       // 状态改变时发送相应消息
-      if (pb8_state == GPIO_PIN_RESET)
+      if (horizontal_min_state == GPIO_PIN_RESET)
       {
-        HAL_UART_Transmit(&huart2, (uint8_t*)"vertical1\r\n", 11, HAL_MAX_DELAY);
+        HAL_UART_Transmit(&huart2, (uint8_t*)"horizontal_min_1\r\n", 18, HAL_MAX_DELAY);
       }
       else
       {
-        HAL_UART_Transmit(&huart2, (uint8_t*)"vertical0\r\n", 11, HAL_MAX_DELAY);
+        HAL_UART_Transmit(&huart2, (uint8_t*)"horizontal_min_0\r\n", 18, HAL_MAX_DELAY);
       }
-      last_pb8_state = pb8_state;
+      last_horizontal_min_state = horizontal_min_state;
     }
-    else if (pb8_state == GPIO_PIN_RESET)
+    else if (horizontal_min_state == GPIO_PIN_RESET)
     {
-      // PB8保持低电平时，持续输出
-      HAL_UART_Transmit(&huart2, (uint8_t*)"vertical1\r\n", 11, HAL_MAX_DELAY);
+      // 保持低电平时，持续输出
+      HAL_UART_Transmit(&huart2, (uint8_t*)"horizontal_min_1\r\n", 18, HAL_MAX_DELAY);
     }
-    else if (pb8_state == GPIO_PIN_SET)
+    else if (horizontal_min_state == GPIO_PIN_SET)
     {
-      // PB8保持高电平时，持续输出
-      HAL_UART_Transmit(&huart2, (uint8_t*)"vertical0\r\n", 11, HAL_MAX_DELAY);
+      // 保持高电平时，持续输出
+      HAL_UART_Transmit(&huart2, (uint8_t*)"horizontal_min_0\r\n", 18, HAL_MAX_DELAY);
     }
     
-    // 处理 PB9 的状态变化和持续输出
-    if (pb9_state != last_pb9_state)
+    // 处理 vertical_min 的状态变化和持续输出
+    if (vertical_min_state != last_vertical_min_state)
     {
       // 状态改变时发送相应消息
-      if (pb9_state == GPIO_PIN_RESET)
+      if (vertical_min_state == GPIO_PIN_RESET)
       {
-        HAL_UART_Transmit(&huart2, (uint8_t*)"horizontal1\r\n", 13, HAL_MAX_DELAY);
+        HAL_UART_Transmit(&huart2, (uint8_t*)"vertical_min_1\r\n", 16, HAL_MAX_DELAY);
       }
       else
       {
-        HAL_UART_Transmit(&huart2, (uint8_t*)"horizontal0\r\n", 13, HAL_MAX_DELAY);
+        HAL_UART_Transmit(&huart2, (uint8_t*)"vertical_min_0\r\n", 16, HAL_MAX_DELAY);
       }
-      last_pb9_state = pb9_state;
+      last_vertical_min_state = vertical_min_state;
     }
-    else if (pb9_state == GPIO_PIN_RESET)
+    else if (vertical_min_state == GPIO_PIN_RESET)
     {
-      // PB9保持低电平时，持续输出
-      HAL_UART_Transmit(&huart2, (uint8_t*)"horizontal1\r\n", 13, HAL_MAX_DELAY);
+      // 保持低电平时，持续输出
+      HAL_UART_Transmit(&huart2, (uint8_t*)"vertical_min_1\r\n", 16, HAL_MAX_DELAY);
     }
-    else if (pb9_state == GPIO_PIN_SET)
+    else if (vertical_min_state == GPIO_PIN_SET)
     {
-      // PB9保持高电平时，持续输出
-      HAL_UART_Transmit(&huart2, (uint8_t*)"horizontal0\r\n", 13, HAL_MAX_DELAY);
+      // 保持高电平时，持续输出
+      HAL_UART_Transmit(&huart2, (uint8_t*)"vertical_min_0\r\n", 16, HAL_MAX_DELAY);
+    }
+
+    // 处理 vertical_max 的状态变化和持续输出
+    if (vertical_max_state != last_vertical_max_state)
+    {
+      if (vertical_max_state == GPIO_PIN_RESET)
+      {
+        HAL_UART_Transmit(&huart2, (uint8_t*)"vertical_max_1\r\n", 16, HAL_MAX_DELAY);
+      }
+      else
+      {
+        HAL_UART_Transmit(&huart2, (uint8_t*)"vertical_max_0\r\n", 16, HAL_MAX_DELAY);
+      }
+      last_vertical_max_state = vertical_max_state;
+    }
+    else if (vertical_max_state == GPIO_PIN_RESET)
+    {
+      HAL_UART_Transmit(&huart2, (uint8_t*)"vertical_max_1\r\n", 16, HAL_MAX_DELAY);
+    }
+    else if (vertical_max_state == GPIO_PIN_SET)
+    {
+      HAL_UART_Transmit(&huart2, (uint8_t*)"vertical_max_0\r\n", 16, HAL_MAX_DELAY);
+    }
+
+    // 处理 horizontal_max 的状态变化和持续输出
+    if (horizontal_max_state != last_horizontal_max_state)
+    {
+      if (horizontal_max_state == GPIO_PIN_RESET)
+      {
+        HAL_UART_Transmit(&huart2, (uint8_t*)"horizontal_max_1\r\n", 18, HAL_MAX_DELAY);
+      }
+      else
+      {
+        HAL_UART_Transmit(&huart2, (uint8_t*)"horizontal_max_0\r\n", 18, HAL_MAX_DELAY);
+      }
+      last_horizontal_max_state = horizontal_max_state;
+    }
+    else if (horizontal_max_state == GPIO_PIN_RESET)
+    {
+      HAL_UART_Transmit(&huart2, (uint8_t*)"horizontal_max_1\r\n", 18, HAL_MAX_DELAY);
+    }
+    else if (horizontal_max_state == GPIO_PIN_SET)
+    {
+      HAL_UART_Transmit(&huart2, (uint8_t*)"horizontal_max_0\r\n", 18, HAL_MAX_DELAY);
     }
     
     HAL_Delay(10);  // 短暂延时，避免CPU占用过高
@@ -275,8 +327,8 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : switch1_Pin switch2_Pin */
-  GPIO_InitStruct.Pin = switch1_Pin|switch2_Pin;
+  /*Configure GPIO pins : switch4_Pin switch3_Pin switch1_Pin switch2_Pin */
+  GPIO_InitStruct.Pin = switch4_Pin|switch3_Pin|switch1_Pin|switch2_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
   GPIO_InitStruct.Pull = GPIO_PULLUP;
   HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
