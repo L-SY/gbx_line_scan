@@ -10,8 +10,14 @@ transport_logic_node:
     motor_slave_address: 2
     
     # ZD Motor 速度配置 (RPM)
-    reverse_speed_rpm: 2000
-    forward_speed_rpm: 1000
+    reverse_speed_rpm: 3000
+    forward_speed_rpm: 3000
+
+    # WORK: 额外的 ZD 电机（slave id=3）速度 (RPM)，方向固定为 REVERSE
+    work_speed_rpm: 300
+
+    # WORK: 原始 ZD 电机抬升速度 (RPM)，用于 vertical_min_0 后等待10秒再 FORWARD 到 vertical_min_1
+    work_lift_speed_rpm: 500
     
     # LC Servo Motor 配置
     servo_device_path: "/dev/ttyACM0"

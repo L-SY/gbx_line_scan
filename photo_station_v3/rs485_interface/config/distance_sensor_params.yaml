@@ -7,10 +7,10 @@ distance_sensor_node:
     baud_rate: 115200
     
     # MODBUS slave address (typically 1-255)
-    slave_address: 1
+    slave_address: 4
     
     # Publishing rate in Hz
-    publish_rate: 10.0
+    publish_rate: 50.0
     
     # Frame ID for the sensor (used in Range message header)
     frame_id: "distance_sensor"
@@ -25,5 +25,5 @@ distance_sensor_node:
     field_of_view: 0.1
     
     # Communication timeout in milliseconds
-    timeout_ms: 1000
+    timeout_ms: 1500
 
