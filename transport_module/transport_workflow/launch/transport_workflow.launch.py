@@ -67,7 +67,7 @@ def generate_launch_description():
         # Arguments
         gui_only_arg,
         
-        # Launch transport logic (immediate)
+        # Launch transport logic (includes distance sensor now)
         GroupAction(
             actions=[transport_logic_launch],
             condition=UnlessCondition(LaunchConfiguration('gui_only'))

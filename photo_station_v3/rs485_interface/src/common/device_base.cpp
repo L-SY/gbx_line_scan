@@ -1,13 +1,13 @@
 #include "rs485_interface/common/device_base.hpp"
-#include "rs485_interface/distance_sensor/modbus_client.hpp"
+#include "rs485_interface/common/modbus_transport.hpp"
 
 namespace rs485_interface
 {
 
 DeviceBase::DeviceBase(
-  std::shared_ptr<ModbusClient> modbus_client,
+  std::shared_ptr<ModbusTransport> modbus,
   uint8_t slave_address)
-: modbus_client_(modbus_client),
+: modbus_(modbus),
   slave_address_(slave_address)
 {
 }
@@ -17,8 +17,8 @@ std::string DeviceBase::getLastError() const
   if (!last_error_.empty()) {
     return last_error_;
   }
-  if (modbus_client_) {
-    return modbus_client_->getLastError();
+  if (modbus_) {
+    return modbus_->getLastError();
   }
   return "No error";
 }

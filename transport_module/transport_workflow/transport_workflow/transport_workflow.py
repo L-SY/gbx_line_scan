@@ -35,6 +35,8 @@ import threading
 from typing import Optional
 
 import numpy as np
+from collections import deque
+from datetime import datetime
 
 from PyQt5.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
@@ -43,6 +45,10 @@ from PyQt5.QtWidgets import (
 )
 from PyQt5.QtCore import Qt, QTimer, pyqtSignal, QObject
 from PyQt5.QtGui import QFont
+
+from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
+from matplotlib.figure import Figure
+import matplotlib.pyplot as plt
 
 import rclpy
 from rclpy.node import Node
@@ -64,6 +70,7 @@ class RosSignalBridge(QObject):
     zd_motor_state_updated = pyqtSignal(str)
     servo_motor_state_updated = pyqtSignal(str)
     motor_work_state_updated = pyqtSignal(str)
+    distance_sensor_updated = pyqtSignal(float)
 
 
 # ============================================================================
@@ -110,6 +117,9 @@ class TransportWorkflowNode(Node):
         self.motor_work_state_sub = self.create_subscription(
             String, 'transport_logic/motor_work_state',
             self._motor_work_state_callback, 10)
+        self.distance_sensor_sub = self.create_subscription(
+            Float64, 'distance/value',
+            self._distance_sensor_callback, 10)
     
     def _setup_publishers(self):
         """Setup publishers for manual control"""
@@ -156,6 +166,11 @@ class TransportWorkflowNode(Node):
     
     def _motor_work_state_callback(self, msg: String):
         self.signal_bridge.motor_work_state_updated.emit(msg.data)
+    
+    def _distance_sensor_callback(self, msg: Float64):
+        # Only emit valid (non-NaN) values
+        if not np.isnan(msg.data):
+            self.signal_bridge.distance_sensor_updated.emit(msg.data)
     
     def publish_manual_mode(self, enabled: bool):
         msg = Bool()
@@ -377,6 +392,87 @@ class MotorControlPanel(QGroupBox):
 
 
 # ============================================================================
+# Distance Sensor Plot Widget
+# ============================================================================
+class DistanceSensorPlot(QGroupBox):
+    """Distance sensor plot widget with real-time curve"""
+    
+    def __init__(self, parent=None):
+        super().__init__("Distance Sensor", parent)
+        self.max_points = 500  # Keep last 500 points
+        self.time_data = deque(maxlen=self.max_points)
+        self.distance_data = deque(maxlen=self.max_points)
+        self.start_time = datetime.now()
+        
+        self._setup_ui()
+    
+    def _setup_ui(self):
+        layout = QVBoxLayout()
+        layout.setContentsMargins(5, 5, 5, 5)
+        
+        # Create matplotlib figure
+        self.figure = Figure(figsize=(8, 4), facecolor='white')
+        self.canvas = FigureCanvas(self.figure)
+        self.ax = self.figure.add_subplot(111)
+        self.ax.set_xlabel('Time (s)', fontsize=10)
+        self.ax.set_ylabel('Distance (m)', fontsize=10)
+        self.ax.set_title('Distance Sensor Real-time Plot', fontsize=12, fontweight='bold')
+        self.ax.grid(True, alpha=0.3)
+        self.ax.set_ylim(0, 2.0)  # Set reasonable range for distance
+        
+        # Initialize empty line
+        self.line, = self.ax.plot([], [], 'b-', linewidth=1.5, label='Distance')
+        self.ax.axhline(y=0.8, color='r', linestyle='--', linewidth=1, label='Threshold (0.8m)')
+        self.ax.legend(loc='upper right', fontsize=9)
+        
+        self.figure.tight_layout()
+        layout.addWidget(self.canvas)
+        
+        # Current value display
+        self.value_label = QLabel("Current: -- m")
+        self.value_label.setStyleSheet("""
+            QLabel {
+                background-color: #f0f0f0;
+                color: #000000;
+                padding: 4px 12px;
+                border: 1px solid #a0a0a0;
+                border-radius: 4px;
+                font-size: 12px;
+                font-weight: bold;
+            }
+        """)
+        self.value_label.setAlignment(Qt.AlignCenter)
+        layout.addWidget(self.value_label)
+        
+        self.setLayout(layout)
+    
+    def update_distance(self, distance: float):
+        """Update plot with new distance value"""
+        current_time = datetime.now()
+        elapsed = (current_time - self.start_time).total_seconds()
+        
+        self.time_data.append(elapsed)
+        self.distance_data.append(distance)
+        
+        # Update plot
+        if len(self.time_data) > 0:
+            self.line.set_data(list(self.time_data), list(self.distance_data))
+            self.ax.set_xlim(max(0, elapsed - 30), max(30, elapsed))  # Show last 30 seconds
+            
+            # Auto-adjust y-axis if needed
+            if len(self.distance_data) > 0:
+                max_dist = max(self.distance_data)
+                min_dist = min(self.distance_data)
+                margin = (max_dist - min_dist) * 0.1 if max_dist > min_dist else 0.2
+                self.ax.set_ylim(max(0, min_dist - margin), max_dist + margin)
+        
+        self.canvas.draw()
+        
+        # Update label
+        self.value_label.setText(f"Current: {distance:.3f} m")
+
+
+# ============================================================================
 # Main Transport Workflow GUI Window
 # ============================================================================
 class TransportWorkflowGUI(QMainWindow):
@@ -499,7 +595,7 @@ class TransportWorkflowGUI(QMainWindow):
         # State machine control
         status_layout.addWidget(QLabel("Set:"))
         self.state_combo = QComboBox()
-        self.state_combo.addItems(["INIT", "WAIT", "PRE", "WORK", "FINISH"])
+        self.state_combo.addItems(["INIT", "WAIT", "PRE", "WORK", "EMPTY", "FINISH"])
         self.state_combo.setMaximumWidth(100)
         status_layout.addWidget(self.state_combo)
         
@@ -668,6 +764,12 @@ class TransportWorkflowGUI(QMainWindow):
         
         main_layout.addWidget(motor_group)  # No stretch factor - keep natural size
         
+        # Distance sensor plot section
+        self.distance_plot = DistanceSensorPlot()
+        self.distance_plot.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
+        self.distance_plot.setMinimumHeight(300)
+        main_layout.addWidget(self.distance_plot)
+        
         # Add bottom stretch to push content up
         main_layout.addStretch(1)
         
@@ -694,6 +796,7 @@ class TransportWorkflowGUI(QMainWindow):
         self.signal_bridge.zd_motor_state_updated.connect(self._on_vertical_motor_state_updated)
         self.signal_bridge.servo_motor_state_updated.connect(self._on_horizontal_motor_state_updated)
         self.signal_bridge.motor_work_state_updated.connect(self._on_transport_motor_state_updated)
+        self.signal_bridge.distance_sensor_updated.connect(self._on_distance_sensor_updated)
         
         # UI control signals
         self.manual_mode_btn.clicked.connect(self._on_manual_mode_toggled)
@@ -717,12 +820,19 @@ class TransportWorkflowGUI(QMainWindow):
     
     def _on_state_machine_state_updated(self, state: str):
         self.state_machine_label.setText(state)
-        # Update combo box to match current state
-        index = self.state_combo.findText(state)
-        if index >= 0:
-            self.state_combo.blockSignals(True)
-            self.state_combo.setCurrentIndex(index)
-            self.state_combo.blockSignals(False)
+        # Important:
+        # The combo box is used as a *target state selector* (what user wants to set),
+        # not as a display of the current state. If we force-sync it to the current
+        # state at 10Hz, the user's selection will be overwritten (often back to INIT)
+        # before they can click "Set", causing wrong state to be sent.
+        #
+        # So we only sync the combo in AUTO mode; in MANUAL mode we keep user's selection.
+        if not self._manual_mode:
+            index = self.state_combo.findText(state)
+            if index >= 0:
+                self.state_combo.blockSignals(True)
+                self.state_combo.setCurrentIndex(index)
+                self.state_combo.blockSignals(False)
         
         # Show/hide confirm button based on state
         if state == "WAIT":
@@ -861,6 +971,9 @@ class TransportWorkflowGUI(QMainWindow):
         self.ros_node.publish_manual_mode(checked)
     
     def _on_set_state_clicked(self):
+        if not self._manual_mode:
+            self.status_label.setText("Please enable manual mode first")
+            return
         state = self.state_combo.currentText()
         self.ros_node.publish_set_state(state)
         self.status_label.setText(f"State set to: {state}")
@@ -925,6 +1038,10 @@ class TransportWorkflowGUI(QMainWindow):
             return
         # Note: transport motor manual control not implemented in C++ node yet
         self.status_label.setText("Transport Motor manual control not yet implemented")
+    
+    def _on_distance_sensor_updated(self, distance: float):
+        """Handle distance sensor update"""
+        self.distance_plot.update_distance(distance)
     
     def get_logger(self):
         return self.ros_node.get_logger()

@@ -2,6 +2,7 @@
 #include "std_msgs/msg/string.hpp"
 #include "std_msgs/msg/bool.hpp"
 #include "std_msgs/msg/float64.hpp"
+#include "sensor_msgs/msg/range.hpp"
 #include "rs485_interface/motor/zd_motor/zd_motor_new.hpp"
 #include "rs485_interface/motor/lc_servo_motor/lc_servo_motor_new.hpp"
 #include "rs485_interface/common/rs485_client.hpp"
@@ -11,6 +12,7 @@
 #include <mutex>
 #include <chrono>
 #include <thread>
+#include <limits>
 
 class TransportLogicNode : public rclcpp::Node
 {
@@ -33,6 +35,12 @@ public:
     this->declare_parameter<double>("servo_forward_speed_rpm", 1000.0);
     this->declare_parameter<double>("servo_reverse_speed_rpm", 1000.0);
     this->declare_parameter<std::string>("microswitch_topic", "/microswitch/data");
+    this->declare_parameter<bool>("enable_distance_sensor", false);
+    this->declare_parameter<std::string>("distance_sensor_device_path", "/dev/ttyACM0");
+    this->declare_parameter<int>("distance_sensor_baud_rate", 115200);
+    this->declare_parameter<int>("distance_sensor_slave_address", 4);
+    this->declare_parameter<double>("distance_sensor_publish_rate", 10.0);
+    this->declare_parameter<double>("empty_distance_threshold", 0.8);
     enable_zd_motor_ = this->get_parameter("enable_zd_motor").as_bool();
     enable_servo_motor_ = this->get_parameter("enable_servo_motor").as_bool();
     work_speed_rpm_ = this->get_parameter("work_speed_rpm").as_int();
@@ -193,6 +201,63 @@ public:
       std::bind(&TransportLogicNode::microswitchCallback, this, std::placeholders::_1)
     );
 
+    empty_distance_threshold_ = this->get_parameter("empty_distance_threshold").as_double();
+    last_distance_ = 0.0;
+    RCLCPP_INFO(this->get_logger(), "Empty distance threshold: %.2f m", empty_distance_threshold_);
+
+    // Initialize distance sensor (after motors, use motor's RS485Client)
+    enable_distance_sensor_ = this->get_parameter("enable_distance_sensor").as_bool();
+    if (enable_distance_sensor_) {
+      int distance_sensor_slave_address = this->get_parameter("distance_sensor_slave_address").as_int();
+      double distance_sensor_publish_rate = this->get_parameter("distance_sensor_publish_rate").as_double();
+      std::string distance_sensor_device_path = this->get_parameter("distance_sensor_device_path").as_string();
+      
+      // Find which RS485Client to use (prefer motor's, fallback to servo's)
+      std::shared_ptr<rs485_interface::RS485Client> distance_rs485_client = nullptr;
+      std::string motor_device_path = enable_zd_motor_ ? this->get_parameter("motor_device_path").as_string() : "";
+      std::string servo_device_path = enable_servo_motor_ ? this->get_parameter("servo_device_path").as_string() : "";
+      
+      if (enable_zd_motor_ && rs485_client_ && distance_sensor_device_path == motor_device_path) {
+        distance_rs485_client = rs485_client_;
+        RCLCPP_INFO(this->get_logger(), "Distance sensor using motor's RS485Client: %s", motor_device_path.c_str());
+      } else if (enable_servo_motor_ && servo_rs485_client_ && distance_sensor_device_path == servo_device_path) {
+        distance_rs485_client = servo_rs485_client_;
+        RCLCPP_INFO(this->get_logger(), "Distance sensor using servo's RS485Client: %s", servo_device_path.c_str());
+      } else {
+        RCLCPP_WARN(this->get_logger(), "Distance sensor device path (%s) doesn't match motor devices, or no RS485Client available", 
+                    distance_sensor_device_path.c_str());
+        enable_distance_sensor_ = false;
+      }
+      
+      if (enable_distance_sensor_ && distance_rs485_client) {
+        distance_rs485_client_ = distance_rs485_client;
+        distance_sensor_slave_address_ = static_cast<uint8_t>(distance_sensor_slave_address);
+        
+        // Test read to verify connection
+        std::vector<uint16_t> test_registers;
+        if (!distance_rs485_client_->readInputRegisters(distance_sensor_slave_address_, 0x0000, 2, test_registers)) {
+          RCLCPP_WARN(this->get_logger(), "Failed to read distance sensor (test): %s (will continue anyway)",
+                      distance_rs485_client_->getLastError().c_str());
+          enable_distance_sensor_ = false;
+        } else {
+          RCLCPP_INFO(this->get_logger(), "Distance sensor connected (slave address: %d)", distance_sensor_slave_address);
+          
+          // Create publishers for distance sensor
+          distance_value_pub_ = this->create_publisher<std_msgs::msg::Float64>("distance/value", 10);
+          distance_range_pub_ = this->create_publisher<sensor_msgs::msg::Range>("distance/range", 10);
+          
+          // Create timer for reading distance
+          auto timer_period = std::chrono::milliseconds(static_cast<int>(1000.0 / distance_sensor_publish_rate));
+          distance_timer_ = this->create_wall_timer(
+            timer_period,
+            std::bind(&TransportLogicNode::distanceSensorTimerCallback, this)
+          );
+        }
+      }
+    } else {
+      RCLCPP_INFO(this->get_logger(), "Distance sensor is disabled");
+    }
+
     // Publishers for status
     state_machine_state_pub_ = this->create_publisher<std_msgs::msg::String>(
       "transport_logic/state_machine_state", 10);
@@ -323,6 +388,7 @@ public:
     if (servo_rs485_client_) {
       servo_rs485_client_->close();
     }
+    // Note: distance_rs485_client_ is shared with motor, don't close it here
   }
 
 private:
@@ -332,6 +398,7 @@ private:
     WAIT,
     PRE,
     WORK,
+    EMPTY,
     FINISH
   };
 
@@ -342,6 +409,7 @@ private:
       case MainState::WAIT: return "WAIT";
       case MainState::PRE: return "PRE";
       case MainState::WORK: return "WORK";
+      case MainState::EMPTY: return "EMPTY";
       case MainState::FINISH: return "FINISH";
       default: return "UNKNOWN";
     }
@@ -364,6 +432,95 @@ private:
     if (main_state_ == MainState::INIT) {
       init_vertical_done_ = !enable_zd_motor_;
       init_horizontal_done_ = !enable_servo_motor_;
+
+      // Always reset INIT-related debounce / state tracking so each INIT behaves like a fresh homing cycle.
+      // Otherwise, if microswitch state doesn't change (e.g., still vertical_max_0),
+      // callbacks may early-return and motors won't start.
+      current_vertical_state_.clear();
+      current_horizontal_state_.clear();
+      pending_vertical_state_.clear();
+      pending_horizontal_state_.clear();
+      vertical_state_count_ = 0;
+      horizontal_state_count_ = 0;
+      
+      // If motors are enabled and not done, start homing immediately based on current microswitch state
+      if (enable_zd_motor_ && !init_vertical_done_ && !last_microswitch_status_.empty()) {
+        // Parse microswitch status to find vertical_max state
+        // Status may contain multiple states like "vertical_max_0 horizontal_max_1"
+        std::string status = last_microswitch_status_;
+        while (!status.empty() && (status.back() == '\n' || status.back() == '\r' || status.back() == ' ')) {
+          status.pop_back();
+        }
+        while (!status.empty() && status.front() == ' ') {
+          status.erase(0, 1);
+        }
+        
+        // Find vertical_max state in the status string
+        size_t pos = status.find("vertical_max");
+        if (pos != std::string::npos) {
+          // Extract the state (e.g., "vertical_max_0" or "vertical_max_1")
+          size_t start = pos;
+          size_t end = status.find(' ', start);
+          if (end == std::string::npos) {
+            end = status.length();
+          }
+          std::string state = status.substr(start, end - start);
+          
+          if (state == "vertical_max_0" || state == "vertical_max_1") {
+            // Update current state and trigger motor action
+            current_vertical_state_ = state;
+            if (state == "vertical_max_0") {
+              RCLCPP_INFO(this->get_logger(), "INIT: Starting vertical homing from vertical_max_0");
+              setZdMotorSpeedRetry(motor_, reverse_speed_rpm_);
+              setZdMotorCommandRetry(motor_, rs485_interface::ZdMotor::ControlCommand::REVERSE);
+            } else if (state == "vertical_max_1") {
+              RCLCPP_INFO(this->get_logger(), "INIT: Starting vertical homing from vertical_max_1");
+              setZdMotorSpeedRetry(motor_, forward_speed_rpm_);
+              setZdMotorCommandRetry(motor_, rs485_interface::ZdMotor::ControlCommand::FORWARD);
+            }
+          }
+        }
+      }
+      
+      if (enable_servo_motor_ && !init_horizontal_done_ && !last_microswitch_status_.empty()) {
+        // Parse microswitch status to find horizontal_max state
+        // Status may contain multiple states like "vertical_max_0 horizontal_max_1"
+        std::string status = last_microswitch_status_;
+        while (!status.empty() && (status.back() == '\n' || status.back() == '\r' || status.back() == ' ')) {
+          status.pop_back();
+        }
+        while (!status.empty() && status.front() == ' ') {
+          status.erase(0, 1);
+        }
+        
+        // Find horizontal_max state in the status string
+        size_t pos = status.find("horizontal_max");
+        if (pos != std::string::npos) {
+          // Extract the state (e.g., "horizontal_max_0" or "horizontal_max_1")
+          size_t start = pos;
+          size_t end = status.find(' ', start);
+          if (end == std::string::npos) {
+            end = status.length();
+          }
+          std::string state = status.substr(start, end - start);
+          
+          if (state == "horizontal_max_0" || state == "horizontal_max_1") {
+            // Update current state and trigger motor action
+            current_horizontal_state_ = state;
+            if (state == "horizontal_max_0") {
+              RCLCPP_INFO(this->get_logger(), "INIT: Starting horizontal homing from horizontal_max_0");
+              setServoEnableRetry(servo_motor_, rs485_interface::LcServoMotor::EnableState::ENABLE);
+              setServoSpeedRetry(servo_motor_, servo_forward_speed_rpm_);
+              setServoDirectionRetry(servo_motor_, rs485_interface::LcServoMotor::Direction::FORWARD);
+            } else if (state == "horizontal_max_1") {
+              RCLCPP_INFO(this->get_logger(), "INIT: Starting horizontal homing from horizontal_max_1");
+              setServoEnableRetry(servo_motor_, rs485_interface::LcServoMotor::EnableState::ENABLE);
+              setServoSpeedRetry(servo_motor_, servo_reverse_speed_rpm_);
+              setServoDirectionRetry(servo_motor_, rs485_interface::LcServoMotor::Direction::REVERSE);
+            }
+          }
+        }
+      }
     } else if (main_state_ == MainState::WAIT) {
       // WAIT state: waiting for user confirmation to proceed to PRE
     } else if (main_state_ == MainState::PRE) {
@@ -382,6 +539,18 @@ private:
       work_motor_forward_started_ = false;
       work_motor_work_waiting_stop_ = false;
       work_motor_work_stop_time_ = rclcpp::Time(0, 0, this->get_clock()->get_clock_type());
+    } else if (main_state_ == MainState::EMPTY) {
+      empty_motor_continue_start_time_ = this->get_clock()->now();
+      empty_motor_continue_done_ = false;
+      empty_init_started_ = false;
+      // Ensure transport motor continues running
+      if (motor_work_ && enable_zd_motor_) {
+        if (!motor_work_started_) {
+          setZdMotorSpeedRetry(motor_work_, work_speed_rpm_);
+          setZdMotorCommandRetry(motor_work_, rs485_interface::ZdMotor::ControlCommand::REVERSE);
+          motor_work_started_ = true;
+        }
+      }
     }
   }
 
@@ -526,6 +695,9 @@ private:
       case MainState::WORK:
         tickWork();
         break;
+      case MainState::EMPTY:
+        tickEmpty();
+        break;
       case MainState::FINISH:
         tickFinish();
         break;
@@ -614,6 +786,8 @@ private:
       new_state = MainState::PRE;
     } else if (state_str == "WORK") {
       new_state = MainState::WORK;
+    } else if (state_str == "EMPTY") {
+      new_state = MainState::EMPTY;
     } else if (state_str == "FINISH") {
       new_state = MainState::FINISH;
     } else {
@@ -739,8 +913,16 @@ private:
   void tickInit()
   {
     // Auto transition: INIT -> WAIT when homing is complete.
+    // But if we came from EMPTY, go to FINISH instead
     if (init_vertical_done_ && init_horizontal_done_) {
-      setMainState(MainState::WAIT, "init complete");
+      if (empty_init_started_) {
+        // Came from EMPTY, go to FINISH
+        empty_init_started_ = false;
+        setMainState(MainState::FINISH, "init complete from empty");
+      } else {
+        // Normal INIT, go to WAIT
+        setMainState(MainState::WAIT, "init complete");
+      }
     }
   }
   void tickWait()
@@ -829,7 +1011,40 @@ private:
         }
       }
     }
+
+    // Check distance sensor: if distance > 0.8m, transition to EMPTY
+    if (last_distance_ > empty_distance_threshold_) {
+      RCLCPP_INFO(this->get_logger(), "WORK: distance (%.2f m) > threshold (%.2f m), transitioning to EMPTY", 
+                  last_distance_, empty_distance_threshold_);
+      setMainState(MainState::EMPTY, "distance threshold exceeded");
+    }
   }
+
+  void tickEmpty()
+  {
+    const auto now = this->get_clock()->now();
+    
+    // Phase 1: Continue transport motor for 3 seconds
+    if (!empty_motor_continue_done_) {
+      const double elapsed = (now - empty_motor_continue_start_time_).seconds();
+      if (elapsed >= 3.0) {
+        RCLCPP_INFO(this->get_logger(), "EMPTY: 3s elapsed, stopping transport motor and starting INIT");
+        // Stop transport motor (motor_work_)
+        if (motor_work_) {
+          setZdMotorCommandRetry(motor_work_, rs485_interface::ZdMotor::ControlCommand::STOP);
+        }
+        empty_motor_continue_done_ = true;
+        // Start INIT phase
+        setMainState(MainState::INIT, "empty motor continue done");
+        empty_init_started_ = true;
+        return;
+      } else {
+        // Keep transport motor running (it should already be running from WORK state)
+        // No need to check, motor should already be running when entering EMPTY
+      }
+    }
+  }
+
   void tickFinish() {}
 
   void microswitchCallback(const std_msgs::msg::String::SharedPtr msg)
@@ -1210,9 +1425,126 @@ private:
   bool work_motor_work_waiting_stop_{false};
   rclcpp::Time work_motor_work_stop_time_{0, 0, RCL_ROS_TIME};
 
+  // Distance sensor (using motor's RS485Client)
+  bool enable_distance_sensor_{false};
+  std::shared_ptr<rs485_interface::RS485Client> distance_rs485_client_;
+  uint8_t distance_sensor_slave_address_{4};
+  rclcpp::Publisher<std_msgs::msg::Float64>::SharedPtr distance_value_pub_;
+  rclcpp::Publisher<sensor_msgs::msg::Range>::SharedPtr distance_range_pub_;
+  rclcpp::TimerBase::SharedPtr distance_timer_;
+  double last_distance_{0.0};
+  double empty_distance_threshold_{0.8};
+  
+  // Distance sensor register addresses (from distance_sensor.hpp)
+  static constexpr uint16_t REG_DISTANCE = 0x0000;
+
+  // EMPTY state
+  rclcpp::Time empty_motor_continue_start_time_{0, 0, RCL_ROS_TIME};
+  bool empty_motor_continue_done_{false};
+  bool empty_init_started_{false};
+
   MainState main_state_;
   MainState last_logged_state_;
   rclcpp::TimerBase::SharedPtr state_timer_;
+
+  void distanceSensorTimerCallback()
+  {
+    if (!enable_distance_sensor_ || !distance_rs485_client_) {
+      return;
+    }
+
+    // Read distance using function code 0x04 (Read Input Registers)
+    // Register 0x0000 contains distance in micrometers (2 registers = 32 bits)
+    std::vector<uint16_t> registers;
+    if (!distance_rs485_client_->readInputRegisters(distance_sensor_slave_address_, REG_DISTANCE, 2, registers)) {
+      std::string error = distance_rs485_client_->getLastError();
+      if (error.find("Invalid measurement") == std::string::npos) {
+        RCLCPP_WARN_THROTTLE(
+          this->get_logger(),
+          *this->get_clock(),
+          5000,
+          "Failed to read distance: %s",
+          error.c_str()
+        );
+      }
+      // Publish NaN for invalid measurements
+      if (distance_value_pub_ && distance_range_pub_) {
+        std_msgs::msg::Float64 distance_msg;
+        distance_msg.data = std::numeric_limits<double>::quiet_NaN();
+        distance_value_pub_->publish(distance_msg);
+
+        sensor_msgs::msg::Range range_msg;
+        range_msg.header.stamp = this->now();
+        range_msg.header.frame_id = "distance_sensor";
+        range_msg.radiation_type = sensor_msgs::msg::Range::INFRARED;
+        range_msg.field_of_view = 0.1;
+        range_msg.min_range = 0.0;
+        range_msg.max_range = 0.5;
+        range_msg.range = std::numeric_limits<double>::quiet_NaN();
+        distance_range_pub_->publish(range_msg);
+      }
+      return;
+    }
+
+    if (registers.size() < 2) {
+      RCLCPP_WARN_THROTTLE(this->get_logger(), *this->get_clock(), 5000,
+                           "Invalid distance sensor response: insufficient registers");
+      return;
+    }
+
+    // Combine two 16-bit registers into 32-bit value (high word first)
+    uint32_t distance_raw = (static_cast<uint32_t>(registers[0]) << 16) | registers[1];
+
+    // Check for invalid measurement value (0x7FFFFFFF = 2147483647)
+    if (distance_raw == 0x7FFFFFFF) {
+      // Invalid measurement - publish NaN
+      if (distance_value_pub_ && distance_range_pub_) {
+        std_msgs::msg::Float64 distance_msg;
+        distance_msg.data = std::numeric_limits<double>::quiet_NaN();
+        distance_value_pub_->publish(distance_msg);
+
+        sensor_msgs::msg::Range range_msg;
+        range_msg.header.stamp = this->now();
+        range_msg.header.frame_id = "distance_sensor";
+        range_msg.radiation_type = sensor_msgs::msg::Range::INFRARED;
+        range_msg.field_of_view = 0.1;
+        range_msg.min_range = 0.0;
+        range_msg.max_range = 0.5;
+        range_msg.range = std::numeric_limits<double>::quiet_NaN();
+        distance_range_pub_->publish(range_msg);
+      }
+      return;
+    }
+
+    // Sensor returns value in micrometers, convert to meters
+    // Original code used / 1000000.0, but user says multiply by 1000
+    // So: (distance_raw / 1000000.0) * 1000 = distance_raw / 1000.0
+    // This suggests sensor actually returns millimeters, not micrometers
+    double distance = distance_raw / 1000.0;  // Convert millimeters to meters
+
+    // Update last valid distance
+    last_distance_ = distance;
+
+    // Publish as Float64
+    if (distance_value_pub_) {
+      std_msgs::msg::Float64 distance_msg;
+      distance_msg.data = distance;
+      distance_value_pub_->publish(distance_msg);
+    }
+
+    // Publish as Range
+    if (distance_range_pub_) {
+      sensor_msgs::msg::Range range_msg;
+      range_msg.header.stamp = this->now();
+      range_msg.header.frame_id = "distance_sensor";
+      range_msg.radiation_type = sensor_msgs::msg::Range::INFRARED;
+      range_msg.field_of_view = 0.1;
+      range_msg.min_range = 0.0;
+      range_msg.max_range = 0.5;
+      range_msg.range = distance;
+      distance_range_pub_->publish(range_msg);
+    }
+  }
 };
 
 int main(int argc, char ** argv)

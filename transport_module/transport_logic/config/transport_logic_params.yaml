@@ -10,7 +10,7 @@ transport_logic_node:
     motor_slave_address: 2
     
     # ZD Motor 速度配置 (RPM)
-    reverse_speed_rpm: 1000
+    reverse_speed_rpm: 3000
     forward_speed_rpm: 3000
 
     # WORK: 额外的 ZD 电机（slave id=3）速度 (RPM)，方向固定为 REVERSE
@@ -30,3 +30,11 @@ transport_logic_node:
     
     # Microswitch 话题
     microswitch_topic: "/microswitch/data"
+    
+    # Distance Sensor 配置
+    enable_distance_sensor: true
+    distance_sensor_device_path: "/dev/ttyACM0"
+    distance_sensor_baud_rate: 19200
+    distance_sensor_slave_address: 4
+    distance_sensor_publish_rate: 50.0
+    empty_distance_threshold: 0.7

@@ -2,7 +2,7 @@
 #define DISTANCE_SENSOR_HPP
 
 #include "rs485_interface/common/device_base.hpp"
-#include "rs485_interface/distance_sensor/modbus_client.hpp"
+#include "rs485_interface/common/modbus_transport.hpp"
 
 #include <cstdint>
 #include <string>
@@ -87,11 +87,11 @@ public:
 
   /**
    * @brief Constructor
-   * @param modbus_client Shared pointer to MODBUS client
+   * @param modbus Shared pointer to MODBUS transport
    * @param slave_address MODBUS slave address (default: 1)
    */
   DistanceSensor(
-    std::shared_ptr<ModbusClient> modbus_client,
+    std::shared_ptr<ModbusTransport> modbus,
     uint8_t slave_address = 1
   );
 

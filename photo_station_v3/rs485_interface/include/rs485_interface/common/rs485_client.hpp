@@ -116,6 +116,21 @@ public:
   );
 
   /**
+   * @brief Read input registers (Function Code 0x04)
+   * @param slave_address Slave device address
+   * @param start_address Starting register address
+   * @param num_registers Number of registers to read
+   * @param result Vector to store read values (16-bit each)
+   * @return true if successful, false otherwise
+   */
+  bool readInputRegisters(
+    uint8_t slave_address,
+    uint16_t start_address,
+    uint16_t num_registers,
+    std::vector<uint16_t> & result
+  );
+
+  /**
    * @brief Write single register (Function Code 0x06)
    * @param slave_address Slave device address
    * @param register_address Register address to write

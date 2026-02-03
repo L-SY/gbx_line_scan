@@ -14,7 +14,7 @@ setup(
         ('share/' + package_name, ['package.xml']),
         (os.path.join('share', package_name, 'launch'), glob(os.path.join('launch', '*launch.[pxy][yma]*'))),
     ],
-    install_requires=['setuptools'],
+    install_requires=['setuptools', 'matplotlib', 'numpy'],
     zip_safe=True,
     maintainer='yang',
     maintainer_email='yang@example.com',

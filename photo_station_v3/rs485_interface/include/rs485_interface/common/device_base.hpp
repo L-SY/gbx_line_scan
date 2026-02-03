@@ -8,7 +8,7 @@
 namespace rs485_interface
 {
 
-class ModbusClient;
+class ModbusTransport;
 
 /**
  * @brief Base class for RS485 MODBUS devices
@@ -25,7 +25,7 @@ public:
    * @param modbus_client Shared pointer to MODBUS client
    * @param slave_address MODBUS slave address of the device
    */
-  DeviceBase(std::shared_ptr<ModbusClient> modbus_client, uint8_t slave_address);
+  DeviceBase(std::shared_ptr<ModbusTransport> modbus, uint8_t slave_address);
 
   /**
    * @brief Virtual destructor
@@ -51,7 +51,7 @@ public:
   std::string getLastError() const;
 
 protected:
-  std::shared_ptr<ModbusClient> modbus_client_;
+  std::shared_ptr<ModbusTransport> modbus_;
   uint8_t slave_address_;
   std::string last_error_;
 };

@@ -152,6 +152,74 @@ bool RS485Client::readHoldingRegisters(
   return true;
 }
 
+bool RS485Client::readInputRegisters(
+  uint8_t slave_address,
+  uint16_t start_address,
+  uint16_t num_registers,
+  std::vector<uint16_t> & result)
+{
+  std::lock_guard<std::mutex> lock(mutex_);
+
+  if (!is_open_) {
+    last_error_ = "Port not open";
+    return false;
+  }
+
+  if (num_registers == 0 || num_registers > 125) {
+    last_error_ = "Invalid number of registers (1-125)";
+    return false;
+  }
+
+  // Build request frame: [SlaveAddr][0x04][StartAddrHi][StartAddrLo][NumRegHi][NumRegLo]
+  std::vector<uint8_t> frame;
+  frame.push_back(slave_address);
+  frame.push_back(0x04);  // Function Code: Read Input Registers
+  frame.push_back((start_address >> 8) & 0xFF);
+  frame.push_back(start_address & 0xFF);
+  frame.push_back((num_registers >> 8) & 0xFF);
+  frame.push_back(num_registers & 0xFF);
+
+  if (!sendFrame(frame)) {
+    return false;
+  }
+
+  // Expected response: [SlaveAddr][0x04][ByteCount][Data...][CRCHi][CRCLo]
+  // ByteCount = num_registers * 2
+  size_t expected_length = 3 + num_registers * 2;  // 1+1+1+data+2(CRC)
+  std::vector<uint8_t> response;
+  if (!receiveFrame(expected_length, response)) {
+    return false;
+  }
+
+  // Verify response
+  if (response.size() < 3) {
+    last_error_ = "Invalid response length";
+    return false;
+  }
+
+  if (response[0] != slave_address || response[1] != 0x04) {
+    last_error_ = "Response does not match request";
+    return false;
+  }
+
+  uint8_t byte_count = response[2];
+  if (byte_count != num_registers * 2) {
+    last_error_ = "Byte count mismatch";
+    return false;
+  }
+
+  // Extract register values
+  result.clear();
+  result.reserve(num_registers);
+  for (size_t i = 0; i < num_registers; ++i) {
+    uint16_t value = (response[3 + i * 2] << 8) | response[3 + i * 2 + 1];
+    result.push_back(value);
+  }
+
+  last_error_.clear();
+  return true;
+}
+
 bool RS485Client::writeSingleRegister(
   uint8_t slave_address,
   uint16_t register_address,

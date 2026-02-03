@@ -1,5 +1,6 @@
 #include "rs485_interface/distance_sensor/distance_sensor.hpp"
 #include "rs485_interface/distance_sensor/modbus_client.hpp"
+#include "rs485_interface/common/modbus_transport_modbus_client.hpp"
 
 #include <rclcpp/rclcpp.hpp>
 #include <sensor_msgs/msg/range.hpp>
@@ -86,9 +87,12 @@ public:
       throw std::runtime_error("Failed to open serial port");
     }
 
+    // Create ModbusClientTransport adapter
+    auto modbus_transport = std::make_shared<rs485_interface::ModbusClientTransport>(modbus_client_);
+    
     // Create distance sensor
     distance_sensor_ = std::make_unique<rs485_interface::DistanceSensor>(
-      modbus_client_,
+      modbus_transport,
       slave_address
     );
 

@@ -9,6 +9,7 @@ endif()
 find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(std_msgs REQUIRED)
+find_package(sensor_msgs REQUIRED)
 find_package(rs485_interface REQUIRED)
 
 # Get rs485_interface include directory
@@ -76,6 +77,7 @@ target_link_libraries(transport_logic_node
 ament_target_dependencies(transport_logic_node
   rclcpp
   std_msgs
+  sensor_msgs
 )
 
 # =============================================================================
