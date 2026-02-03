@@ -8,7 +8,7 @@ def generate_launch_description():
     return LaunchDescription([
         DeclareLaunchArgument(
             'device_path',
-            default_value='/dev/ttyUSB1',
+            default_value='/dev/ttyUSB0',
             description='Path to serial device'
         ),
         DeclareLaunchArgument(

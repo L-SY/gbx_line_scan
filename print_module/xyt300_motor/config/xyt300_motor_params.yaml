@@ -1,6 +1,6 @@
 xyt300_motor_node:
   ros__parameters:
-    device_path: "/dev/ttyACM0"
+    device_path: "/dev/ttyACM2"
     baud_rate: 115200
     slave_address: 1
     publish_rate: 10.0

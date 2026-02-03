@@ -5,7 +5,7 @@ transport_logic_node:
     enable_servo_motor: true
     
     # ZD Motor 配置
-    motor_device_path: "/dev/ttyACM0"
+    motor_device_path: "/dev/ttyACM1"
     motor_baud_rate: 19200
     motor_slave_address: 2
     
@@ -20,7 +20,7 @@ transport_logic_node:
     work_lift_speed_rpm: 500
     
     # LC Servo Motor 配置
-    servo_device_path: "/dev/ttyACM0"
+    servo_device_path: "/dev/ttyACM1"
     servo_baud_rate: 19200
     servo_slave_address: 1
     
@@ -33,7 +33,7 @@ transport_logic_node:
     
     # Distance Sensor 配置
     enable_distance_sensor: true
-    distance_sensor_device_path: "/dev/ttyACM0"
+    distance_sensor_device_path: "/dev/ttyACM1"
     distance_sensor_baud_rate: 19200
     distance_sensor_slave_address: 4
     distance_sensor_publish_rate: 50.0
