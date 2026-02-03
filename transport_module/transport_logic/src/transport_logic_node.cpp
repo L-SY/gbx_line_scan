@@ -947,7 +947,7 @@ private:
       // Check if 2s delay after vertical_min_0 is complete
       if (work_motor_work_waiting_stop_) {
         const double elapsed = (now - work_motor_work_stop_time_).seconds();
-        if (elapsed >= 2.0) {
+        if (elapsed >= 10.0) {
           RCLCPP_INFO(this->get_logger(), "WORK: 2s elapsed after vertical_min_0, stopping motor_work_");
           setZdMotorCommandRetry(motor_work_, rs485_interface::ZdMotor::ControlCommand::STOP);
           motor_work_started_ = false;
