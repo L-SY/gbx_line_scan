@@ -988,7 +988,7 @@ private:
 
     if (work_waiting_for_vertical_min_) {
       const double elapsed = (now - work_wait_start_time_).seconds();
-      if (elapsed >= 5.0) {
+      if (elapsed >= 15.0) {
         work_waiting_for_vertical_min_ = false;
         work_forwarding_to_vertical_min_ = true;
         work_motor_forward_started_ = false;
